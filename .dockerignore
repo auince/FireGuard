@@ -11,3 +11,12 @@ assets
 claude-review
 reference-xfdemo
 reports
+
+docs
+benchmarks
+reports
+configs
+**/*.env
+**/.env*
+**/credentials*.json
+**/accounts*.json

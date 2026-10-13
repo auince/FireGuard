@@ -69,11 +69,7 @@ const foundations = [
   <div class="about">
     <div class="about__container container">
       <header class="about-hero">
-        <img
-          class="about-hero__image"
-          src="/images/about-inspection-hero.png"
-          alt="巡检人员正在检查室内消火栓柜"
-        />
+        <div class="about-hero__image" aria-hidden="true"></div>
         <div class="about-hero__content">
           <span class="about-hero__mark">消防设施智能巡检</span>
           <h1>
@@ -191,6 +187,7 @@ const foundations = [
 }
 
 .about-hero__image {
+  background: linear-gradient(135deg, #213747, #0c1821);
   position: absolute;
   inset: 0;
   width: 100%;

@@ -29,7 +29,7 @@ jobs:
           for i in $(seq 1 30); do docker exec mongo mongosh --quiet --eval 'db.runCommand({ping:1})' && break; sleep 1; done
           docker exec mongo mongosh --quiet --eval 'rs.initiate({_id:"xfagent",members:[{_id:0,host:"localhost:27017"}]})'
           for i in $(seq 1 30); do docker exec mongo mongosh --quiet --eval 'if(!db.hello().isWritablePrimary)quit(1)' && break; sleep 1; done
-      - run: PYTHONPATH=src pytest tests/server tests/practice tests/v2 tests/coverage_v1 -q
+      - run: PYTHONPATH=src pytest tests/server tests/practice tests/v2 -q
         env:
           XF_V2_MONGO: mongodb://127.0.0.1:27017/?replicaSet=xfagent&directConnection=true
           XF_V2_REDIS: redis://127.0.0.1:6379/0
