@@ -11,19 +11,19 @@ const currentYear = new Date().getFullYear()
         <span class="footer__mark"><ShieldCheck :size="18" /></span>
         <span>
           <strong>消防 Agent</strong>
-          <small>消防巡检辅助 · 练手原型</small>
+          <small>智能巡检工作台</small>
         </span>
       </div>
 
       <nav class="footer__nav" aria-label="页脚导航">
-        <router-link to="/inspect">智能检测</router-link>
-        <router-link to="/history">检测历史</router-link>
+        <router-link to="/">工作台</router-link>
+        <router-link to="/inspect">巡检提交</router-link>
+        <router-link to="/review">人工审核</router-link>
+        <router-link to="/history">报告历史</router-link>
         <router-link to="/regulations">法规库</router-link>
-        <router-link to="/">首页</router-link>
       </nav>
 
       <div class="footer__meta">
-        <span class="footer__status"><Activity :size="14" /> 9B · RAG · Harness</span>
         <span>© {{ currentYear }} XFAgent</span>
       </div>
     </div>

@@ -41,10 +41,18 @@ class FixtureModel:
                 'missing_information': []}
 
 
+class FixtureVision:
+    def analyze(self, request, facility, deadline=None):
+        return {'detector': {'enabled': True, 'status': 'completed', 'model_scope': 'synthetic-ui-fixture',
+            'detections': [{'detector_id': 'd1', 'label': '仿真设施框', 'confidence': .91, 'bboxNorm': [.2,.15,.8,.85]}]},
+            'similar_cases': [{'case_id': 'fixture-case', 'description': '仿真历史案例：曾通过清理遮挡物恢复设施取用空间。',
+            'score': .03, 'authority': 'historical_case_not_current_fact', 'usable_as_legal_evidence': False,
+            'review_status': 'synthetic_fixture'}], 'warnings': []}
+
 folder = Path(tempfile.mkdtemp(prefix='xfagent-ui-fixture-'))
 store = Storage(folder / 'state.sqlite')
 for role in ['inspector', 'reviewer']:
     store.add_user(role, 'ui-fixture-only', role)
 print('UI fixture only; model responses are injected. Accounts: inspector / reviewer, password ui-fixture-only.', flush=True)
-uvicorn.run(create_app(Harness(FixtureRAG(), FixtureModel()), store), host='127.0.0.1',
+uvicorn.run(create_app(Harness(FixtureRAG(), FixtureModel(), FixtureVision()), store), host='127.0.0.1',
             port=int(os.getenv('XF_PRACTICE_UI_PORT', '8081')))

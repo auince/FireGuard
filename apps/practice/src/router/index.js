@@ -2,7 +2,8 @@ import {createRouter,createWebHistory} from 'vue-router'
 import {authState} from '@/stores/auth'
 const routes=[
  {path:'/login',name:'Login',component:()=>import('@/views/AuthView.vue'),meta:{public:true,authLayout:true}},
- {path:'/',name:'Home',component:()=>import('@/views/AboutView.vue')},
+ {path:'/',name:'Home',component:()=>import('@/views/DashboardView.vue')},
+ {path:'/about',name:'About',component:()=>import('@/views/AboutView.vue')},
  {path:'/inspect',name:'Inspect',component:()=>import('@/views/InspectView.vue')},
  {path:'/history',name:'History',component:()=>import('@/views/HistoryView.vue')},
  {path:'/reports/:id',name:'Report',component:()=>import('@/views/ReportView.vue')},

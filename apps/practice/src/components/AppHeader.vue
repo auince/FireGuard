@@ -16,11 +16,11 @@ const mobileOpen = ref(false)
 const primaryItems = [
   { path: '/', label: '首页' },
   { path: '/inspect', label: '巡检提交' },
-  { path: '/history', label: '报告历史' },
-  { path: '/regulations', label: '法规库' },
-  { path: '/review', label: '人工审核' }
+  { path: '/review', label: '审核' },
+  { path: '/history', label: '历史' },
+  { path: '/regulations', label: '法规' }
 ]
-const secondaryItems = [{ path: '/sessions', label: '多轮巡检' }, { path: '/memory', label: '记忆管理' }, { path: '/monitor', label: '执行链路' }]
+const secondaryItems = [{ path: '/sessions', label: '多轮巡检' }, { path: '/memory', label: '记忆管理' }]
 
 const isSecondaryActive = computed(() => secondaryItems.some((item) => item.path === route.path))
 const userInitial = computed(() => {
@@ -53,7 +53,7 @@ const handleLogout = async () => {
         <span class="header__logo-icon"><ShieldCheck :size="20" /></span>
         <span class="header__logo-copy">
           <strong>消防 Agent</strong>
-          <small>{{ isFixture ? '仿真演示' : 'XF AGENT' }}</small>
+          <small>{{ isFixture ? '测试环境' : '工作台' }}</small>
         </span>
       </router-link>
 

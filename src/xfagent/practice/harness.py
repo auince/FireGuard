@@ -8,6 +8,7 @@ from xfagent.v2.fact_checks import condition_matches, measurement_checks
 
 from .contracts import Answer, FACILITIES
 from .model import Model
+from xfagent.evidence_vision import VisionEvidence
 from .memory import resolve_followup
 from .rag import TrustedRAG
 
@@ -32,15 +33,18 @@ class State(TypedDict, total=False):
     model: str
     framework: str
     memory_context: dict
+    detector: dict
+    similar_cases: list
     model_calls: int
 
 
 class Harness:
     NODES = ('Intent', 'Rewrite', 'Retrieval', 'Answer', 'Verify')
 
-    def __init__(self, rag=None, model=None):
+    def __init__(self, rag=None, model=None, vision=None):
         self.rag = rag or TrustedRAG()
         self.model = model or Model()
+        self.vision = vision or VisionEvidence()
         graph = StateGraph(State)
         for name, function in zip(self.NODES, [self.intent, self.rewrite, self.retrieve, self.answer, self.verify]):
             graph.add_node(name, self.timed(name, function))
@@ -77,7 +81,9 @@ class Harness:
                 facility = matches[0]
             else:
                 facility = self.complete(state, 'intent', {'query': request['query']}, request.get('image')).get('facility')
-        return {'facility': facility if facility in FACILITIES else 'unknown'}
+        facility = facility if facility in FACILITIES else 'unknown'
+        visual = self.vision.analyze(request, facility, state['deadline']) if request.get('image') else {'detector': {'status': 'not_requested', 'detections': []}, 'similar_cases': [], 'warnings': []}
+        return {'facility': facility, **visual}
 
     def rewrite(self, state):
         request = state['request']
@@ -88,13 +94,16 @@ class Harness:
 
     def retrieve(self, state):
         result = self.rag.search(state['request'], state['queries'])
+        result['warnings'] = state.get('warnings', []) + result.get('warnings', [])
         return {key: result[key] for key in ['evidence', 'warnings', 'snapshot_id', 'rag_version', 'telemetry'] if key in result}
 
     def answer(self, state):
         request = state['request']
         result = (self.complete(state, 'answer', {'query': request['query'], 'facility': state['facility'],
                     'scene': request['scene'], 'evidence': state['evidence'],
-                    'preferences': state.get('memory_context', {}).get('preferences', {})}, request.get('image'))
+                    'preferences': state.get('memory_context', {}).get('preferences', {}),
+                    'detector_localization_only': state.get('detector', {}),
+                    'historical_references_not_current_facts': state.get('similar_cases', [])}, request.get('image'))
                   if state['evidence'] else {'hazards': [], 'missing_information': ['未召回相关条款，请补充资料或调整问题']})
         return {'answer': Answer.model_validate(result).model_dump()}
 

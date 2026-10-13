@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { post, statusLabel, safeSource } from '@/api'
 import { authState } from '@/stores/auth'
+import VisualEvidence from './VisualEvidence.vue'
 
 const props = defineProps({
   report: { type: Object, required: true },
@@ -65,6 +66,7 @@ function expand(id) {
 
 <template>
   <div class="stack">
+    <VisualEvidence :report="report"/>
     <section class="card">
       <div class="page-heading">
         <div>
@@ -96,9 +98,7 @@ function expand(id) {
         </span>
       </p>
 
-      <div v-if="report.image" class="report-image-container">
-        <img :src="report.image" class="report-photo" alt="本报告提交的设施照片">
-      </div>
+
 
       <article v-for="(hazard, i) in report.answer?.hazards || []" :key="i" class="report-block">
         <h3>{{ i + 1 }}. {{ hazard.description }}</h3>
