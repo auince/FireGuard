@@ -41,6 +41,9 @@ onMounted(async () => {
     } catch (e) {
       error.value = e.message
     }
+  } else if (route.query.session) {
+    // Coming from sessions view with existing session context
+    // Leave form empty for user to fill, session_id will be passed in submit
   }
 })
 
@@ -58,7 +61,8 @@ async function submit() {
       query: form.query.trim(),
       image: image.value,
       scene: values,
-      project_id: authState.user.project_id
+      project_id: authState.user.project_id,
+      session_id: typeof route.query.session === 'string' ? route.query.session : null
     }
     if (!input.query) throw new Error('请填写巡检问题')
 

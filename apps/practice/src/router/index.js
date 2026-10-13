@@ -8,6 +8,8 @@ const routes=[
  {path:'/reports/:id',name:'Report',component:()=>import('@/views/ReportView.vue')},
  {path:'/review',name:'Review',component:()=>import('@/views/ReviewView.vue')},
  {path:'/regulations',name:'Regulations',component:()=>import('@/views/RegulationKnowledgeView.vue')},
+ {path:'/sessions',name:'Sessions',component:()=>import('@/views/SessionsView.vue')},
+ {path:'/memory',name:'Memory',component:()=>import('@/views/MemoryView.vue')},
  {path:'/monitor',name:'Monitor',component:()=>import('@/views/MonitorView.vue')},
  {path:'/:pathMatch(.*)*',redirect:'/'}
 ]

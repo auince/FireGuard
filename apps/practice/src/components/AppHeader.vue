@@ -3,9 +3,11 @@ import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { LogOut, Menu, ShieldCheck, UserRound, X } from 'lucide-vue-next'
 import { authActions, authState } from '@/stores/auth'
+import { request } from '@/api'
 
 const route = useRoute()
 const router = useRouter()
+const isFixture = ref(false)
 const isScrolled = ref(false)
 const moreOpen = ref(false)
 const accountOpen = ref(false)
@@ -18,7 +20,7 @@ const primaryItems = [
   { path: '/regulations', label: '法规库' },
   { path: '/review', label: '人工审核' }
 ]
-const secondaryItems = [{ path: '/monitor', label: '执行链路' }]
+const secondaryItems = [{ path: '/sessions', label: '多轮巡检' }, { path: '/memory', label: '记忆管理' }, { path: '/monitor', label: '执行链路' }]
 
 const isSecondaryActive = computed(() => secondaryItems.some((item) => item.path === route.path))
 const userInitial = computed(() => {
@@ -31,7 +33,10 @@ const closeNavigation = () => { moreOpen.value = false; mobileOpen.value = false
 
 watch(() => route.path, closeNavigation)
 
-onMounted(() => window.addEventListener('scroll', handleScroll, { passive: true }))
+onMounted(async () => {
+  window.addEventListener('scroll', handleScroll, { passive: true })
+  try { isFixture.value = (await request('/health')).inference === 'injected_fixture' } catch {}
+})
 onUnmounted(() => window.removeEventListener('scroll', handleScroll))
 
 const handleLogout = async () => {
@@ -48,7 +53,7 @@ const handleLogout = async () => {
         <span class="header__logo-icon"><ShieldCheck :size="20" /></span>
         <span class="header__logo-copy">
           <strong>消防 Agent</strong>
-          <small>XF AGENT</small>
+          <small>{{ isFixture ? '仿真演示' : 'XF AGENT' }}</small>
         </span>
       </router-link>
 
@@ -64,8 +69,6 @@ const handleLogout = async () => {
         <div
           class="header__more"
           :class="{ 'header__more--active': isSecondaryActive, 'header__more--open': moreOpen }"
-          @mouseenter="moreOpen = true"
-          @mouseleave="moreOpen = false"
         >
           <button class="header__more-button" type="button" :aria-expanded="moreOpen" @click.stop="moreOpen = !moreOpen">更多</button>
           <div v-if="moreOpen" class="header__more-menu">
@@ -184,7 +187,7 @@ const handleLogout = async () => {
 }
 
 @media (max-width: 430px) {
-  .header__logo-copy small { display: none; }
+  .header__logo-copy small { font-size: 8px; }
   .header__logo-icon { width: 34px; height: 34px; }
 }
 </style>

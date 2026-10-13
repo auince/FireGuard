@@ -122,6 +122,13 @@ function expand(id) {
       </div>
 
       <div class="actions">
+        <router-link
+          v-if="report.owner === authState.user?.username && report.session_id"
+          :to="{path:'/sessions',query:{id:report.session_id}}"
+          class="btn btn-primary"
+        >
+          继续本次会话
+        </router-link>
         <router-link v-if="canRevise" :to="{ path: '/inspect', query: { revise: report.id } }" class="btn btn-primary">
           补充并重新生成
         </router-link>

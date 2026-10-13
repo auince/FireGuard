@@ -8,6 +8,7 @@ from xfagent.v2.fact_checks import condition_matches, measurement_checks
 
 from .contracts import Answer, FACILITIES
 from .model import Model
+from .memory import resolve_followup
 from .rag import TrustedRAG
 
 
@@ -30,6 +31,7 @@ class State(TypedDict, total=False):
     deadline: float
     model: str
     framework: str
+    memory_context: dict
     model_calls: int
 
 
@@ -68,7 +70,7 @@ class Harness:
 
     def intent(self, state):
         request = state['request']
-        facility = request['facility']
+        facility = resolve_followup(request, state.get('memory_context', {})) or request['facility']
         if facility == 'auto':
             matches = [key for key, term in FACILITIES.items() if term in request['query']]
             if len(matches) == 1:
@@ -80,8 +82,8 @@ class Harness:
     def rewrite(self, state):
         request = state['request']
         result = self.complete(state, 'rewrite', {'query': request['query'], 'facility': state['facility'],
-                    'scene': request['scene'], 'as_of': request['as_of'], 'jurisdiction': request['jurisdiction']})
-        queries = [request['query']] + [q[:400] for q in result.get('queries', []) if isinstance(q, str) and q.strip()]
+                    'scene': request['scene'], 'conversation_context': state.get('memory_context', {}).get('working', {}), 'as_of': request['as_of'], 'jurisdiction': request['jurisdiction']})
+        queries = [(FACILITIES.get(state['facility'], '') + ' ' + request['query']).strip()] + [q[:400] for q in result.get('queries', []) if isinstance(q, str) and q.strip()]
         return {'queries': list(dict.fromkeys(queries))[:3]}
 
     def retrieve(self, state):
@@ -91,7 +93,8 @@ class Harness:
     def answer(self, state):
         request = state['request']
         result = (self.complete(state, 'answer', {'query': request['query'], 'facility': state['facility'],
-                    'scene': request['scene'], 'evidence': state['evidence']}, request.get('image'))
+                    'scene': request['scene'], 'evidence': state['evidence'],
+                    'preferences': state.get('memory_context', {}).get('preferences', {})}, request.get('image'))
                   if state['evidence'] else {'hazards': [], 'missing_information': ['未召回相关条款，请补充资料或调整问题']})
         return {'answer': Answer.model_validate(result).model_dump()}
 
@@ -133,9 +136,9 @@ class Harness:
     def verify(self, state):
         return {'verification': self.verification(state)}
 
-    def execute(self, request, owner='anonymous', run_id=None, on_trace=None):
+    def execute(self, request, owner='anonymous', run_id=None, on_trace=None, memory_context=None):
         state = {'id': run_id or uuid.uuid4().hex, 'revision': 1, 'status': 'draft', 'request': request,
-                 'owner': owner, 'trace': [], 'model': self.model.name, 'framework': 'langgraph-fixed-dag',
+                 'owner': owner, 'memory_context': memory_context or {}, 'trace': [], 'model': self.model.name, 'framework': 'langgraph-fixed-dag',
                  'warnings': [], 'model_calls': 0, 'deadline': time.monotonic() + 300}
         result = self.graph.invoke(state, config={'recursion_limit': 10, 'configurable': {'on_trace': on_trace}})
         return {**request, **{key: value for key, value in result.items() if key not in {'request', 'deadline'}}}

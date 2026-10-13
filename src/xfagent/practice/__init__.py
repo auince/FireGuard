@@ -1,2 +1,1 @@
-"""Runnable teaching iteration; production v2 remains preserved on main."""
-STAGE = 4
+STAGE = 5

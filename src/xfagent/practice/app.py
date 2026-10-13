@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from . import STAGE
 from .contracts import Inspection
 from .harness import Harness
+from .memory import Memory
 from .review import approval_gate
 from .storage import Conflict, Storage
 
@@ -30,6 +31,12 @@ class Review(BaseModel):
     comment: str = Field(default='', max_length=3000)
 
 
+class Preference(BaseModel):
+    model_config = ConfigDict(extra='forbid')
+    answer_style: Literal['concise', 'detailed']
+    consent: bool
+
+
 class Revision(BaseModel):
     expected_revision: int = Field(ge=1)
     input: Inspection
@@ -37,6 +44,7 @@ class Revision(BaseModel):
 
 def create_app(engine=None, storage=None):
     storage = storage or Storage()
+    memory = Memory(storage)
     @asynccontextmanager
     async def lifespan(app):
         storage.recover_interrupted()
@@ -111,11 +119,13 @@ def create_app(engine=None, storage=None):
                 storage.cas(identifier, revision, {'queued', 'running'},
                             lambda report: dict(report, trace=trace, status='running'), increment=False)
             with engine_lock:
-                result = get_engine().execute(request, owner=owner, run_id=identifier, on_trace=trace_update)
+                context = memory.context(request, {'username': owner, 'project_id': request['project_id']}, exclude_id=identifier)
+                result = get_engine().execute(request, owner=owner, run_id=identifier, on_trace=trace_update, memory_context=context)
             status = 'pending' if result['verification']['passed'] else 'blocked'
             storage.cas(identifier, revision, {'queued', 'running'},
                         lambda report: dict(report, **{key: value for key, value in result.items() if key not in {'revision', 'status'}},
                                             status=status), increment=False)
+            memory.touch(request['session_id'], {'username': owner, 'project_id': request['project_id']})
         except Exception:
             try:
                 storage.cas(identifier, revision, {'queued', 'running'},
@@ -129,10 +139,14 @@ def create_app(engine=None, storage=None):
     def inspect(body: Inspection, tasks: BackgroundTasks, who=Depends(actor)):
         if body.project_id != who['project_id']:
             raise HTTPException(403, '无权访问此项目')
+        try:
+            session_id = memory.ensure(body.session_id, who)
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
         if not admission.acquire(blocking=False):
             raise HTTPException(429, '正在处理较多请求，请稍后重试')
         request = body.model_dump(mode='json')
-        request['session_id'] = request['session_id'] or uuid.uuid4().hex
+        request['session_id'] = session_id
         identifier = uuid.uuid4().hex
         report = dict(request, id=identifier, revision=1, status='queued', owner=who['username'],
                       created_at=time.time(), trace=[], reviews=[], answer={'hazards': [], 'missing_information': []},
@@ -202,6 +216,40 @@ def create_app(engine=None, storage=None):
             raise HTTPException(409, str(exc)) from exc
         tasks.add_task(run, identifier, result['revision'], request, previous['owner'])
         return {'id': identifier, 'revision': result['revision'], 'status': 'queued', 'session_id': request['session_id']}
+
+    @app.get('/api/sessions')
+    def sessions(who=Depends(actor)):
+        return {'sessions': memory.sessions(who)}
+
+    @app.get('/api/sessions/{session_id}')
+    def conversation(session_id: str, who=Depends(actor)):
+        try:
+            return {'id': session_id, 'turns': memory.history(session_id, who)}
+        except LookupError as exc:
+            raise HTTPException(404, str(exc)) from exc
+
+    @app.get('/api/memory')
+    def memory_view(who=Depends(actor)):
+        return {'preferences': memory.preferences(who), 'working_ttl_seconds': memory.TTL,
+                'context_budget_bytes': memory.BUDGET, 'redis_enabled': memory.cache is not None,
+                'layers': [
+                    {'name': '工作记忆', 'description': '当前会话指代与设施类型，24 小时有效；有新照片时清空旧现场上下文。'},
+                    {'name': '情景记录', 'description': '持久保存自己的巡检轮次、报告与审核状态，最多展示最近 30 轮。'},
+                    {'name': '用户偏好', 'description': '明确同意后保存回答详略；不保存模型推断的个人信息。'},
+                    {'name': '组织知识', 'description': '每轮重新检索 MongoDB 法规事实库；历史报告不能充当法规依据。'},
+                    {'name': '程序策略', 'description': '固定 DAG 与校验规则由代码维护，本阶段不自动学习或发布策略。'}]}
+
+    @app.post('/api/memory/preferences')
+    def save_preference(body: Preference, who=Depends(actor)):
+        try:
+            return memory.set_preference(who, body.answer_style, body.consent)
+        except ValueError as exc:
+            raise HTTPException(422, str(exc)) from exc
+
+    @app.delete('/api/memory/preferences')
+    def forget_preference(who=Depends(actor)):
+        memory.clear_preferences(who)
+        return {'cleared': True}
 
     @app.get('/api/knowledge/documents')
     def documents(as_of: date = Query(default_factory=date.today), jurisdiction: Literal['四川', '全国'] = '四川', who=Depends(actor)):
