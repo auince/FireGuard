@@ -4,19 +4,27 @@ import uuid
 
 from .contracts import Answer
 from .model import Model
-from .vector import BasicVectorRAG
+from .rag import TrustedRAG
 
 
 class Harness:
     def __init__(self, rag=None, model=None):
-        self.rag = rag or BasicVectorRAG()
+        self.rag = rag or TrustedRAG()
         self.model = model or Model()
 
     def execute(self, request, owner='anonymous'):
         state = {'id': uuid.uuid4().hex, 'revision': 1, 'status': 'draft', **request,
                  'owner': owner, 'trace': [], 'model': self.model.name, 'framework': 'self-built'}
         started = time.monotonic()
-        retrieved = self.rag.search(request, [request['query']])
+        rewritten = self.model.complete('rewrite', {'query': request['query'],
+                  'facility': request.get('facility'), 'scene': request.get('scene', {}),
+                  'as_of': request['as_of'], 'jurisdiction': request['jurisdiction']})
+        queries = [request['query']] + [q[:400] for q in rewritten.get('queries', []) if isinstance(q, str) and q.strip()]
+        queries = list(dict.fromkeys(queries))[:3]
+        state['queries'] = queries
+        state['trace'].append({'node': 'Rewrite', 'status': 'complete', 'seconds': time.monotonic()-started})
+        started = time.monotonic()
+        retrieved = self.rag.search(request, queries)
         state.update(retrieved)
         state['trace'].append({'node': 'Retrieval', 'status': 'complete', 'seconds': time.monotonic()-started})
         started = time.monotonic()

@@ -20,6 +20,7 @@ class Inspection(BaseModel):
     scene: dict = Field(default_factory=dict)
     session_id: str | None = Field(default=None, pattern=r'^[a-zA-Z0-9_-]{1,100}$')
     project_id: str = Field(default='practice', pattern=r'^[a-zA-Z0-9_-]{1,64}$')
+    retrieval_mode: Literal['bm25', 'dense', 'rrf', 'rerank'] = 'rrf'
 
     @field_validator('query')
     @classmethod
