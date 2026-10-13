@@ -56,7 +56,6 @@ onBeforeUnmount(() => {generation++;clearTimeout(timer)})
   <div class="container feature-page">
     <header class="page-heading">
       <div>
-        <p class="kicker">HUMAN REVIEW</p>
         <h1>人工审核</h1>
         <p>逐份核对现场、引用和结论，保留审核意见与版本记录。</p>
       </div>

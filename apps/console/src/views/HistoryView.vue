@@ -25,7 +25,6 @@ onMounted(refresh)
   <div class="container feature-page">
     <header class="page-heading">
       <div>
-        <p class="kicker">REPORT HISTORY</p>
         <h1>报告历史</h1>
         <p>追溯现场问题、模型结论和每一次人工审核。</p>
       </div>

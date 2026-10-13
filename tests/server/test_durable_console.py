@@ -41,7 +41,8 @@ def login(client,role):
     return client.cookies.get('xf_session')
 
 
-def test_edit_confirm_restart_and_cas(service):
+@pytest.mark.parametrize("governed",[False,True])
+def test_edit_confirm_restart_and_cas(service,governed):
     store,client=service
     login(client,'inspector')
     body={'query':'检查室内消火栓','facility':'indoor_hydrant','project_id':'default','use_model':False}
@@ -50,7 +51,7 @@ def test_edit_confirm_restart_and_cas(service):
     identifier=response.json()['id']
     assert client.post('/api/inspect',json=body,headers={'Idempotency-Key':'one'}).json()['id']==identifier
     job=store.claim(identifier,'worker-one')
-    execute(store,inspection_graph(store),job,'worker-one')
+    execute(store,inspection_graph(store,governed=governed),job,'worker-one')
     assert store.db.checkpoints.count_documents({'thread_id':identifier})>0
     report=client.get('/api/reports/'+identifier).json()
     assert report['status']=='pending'
@@ -63,7 +64,7 @@ def test_edit_confirm_restart_and_cas(service):
     assert client.post('/api/reports/'+identifier+'/review',json=decision).status_code in [400,409]
     # Entirely new graph object and worker claim: resume persistent Mongo checkpoint.
     resumed=store.claim(identifier,'worker-two')
-    execute(store,inspection_graph(store),resumed,'worker-two')
+    execute(store,inspection_graph(store,governed=governed),resumed,'worker-two')
     finished=client.get('/api/reports/'+identifier).json()
     assert finished['status']=='approved',finished
     assert finished['conclusions'][0]['text']==decision['conclusions'][0]['text']
@@ -86,3 +87,32 @@ def test_permissions_origin_and_typed_review(service):
         Review(expected_revision=1,action='approve',confirmed_scene={'measured_width':{'value':1,'unit':'m','confirmed':False}})
     with pytest.raises(ValueError):
         Review(expected_revision=1,action='approve',conclusions=[{'claim_id':'x','text':'x','kind':'invented'}])
+
+
+def test_governed_dag_and_bounded_repair(service,monkeypatch):
+    store,_=service
+    monkeypatch.setattr(graphs,'verify',lambda *a,**k:{'passed':False,'errors':[{'code':'injected_generation_error'}],'missing_fields':[]})
+    graph=inspection_graph(store,governed=True)
+    edges={(e.source,e.target) for e in graph.get_graph().edges}
+    chain=['Intent','Rewrite','Retrieval','Answer','Verify']
+    assert all(pair in edges for pair in zip(chain,chain[1:]))
+    initial={'run_id':'bounded','owner':'inspector','snapshot_id':'kb-test','calls':0,'trace':[],'warnings':[],
+             'request':{'project_id':'default','session_id':'bounded','query':'检查消火栓','scene':{},'facility':'indoor_hydrant',
+                        'as_of':'2026-10-13','jurisdiction':'四川','mode':'inspection','use_model':False}}
+    result=graph.invoke(initial,{'configurable':{'thread_id':'bounded'},'recursion_limit':70})
+    assert result['__interrupt__']
+    assert result['rewrites']==2
+    assert sum(t['node']=='repair' for t in result['trace'])==2
+    assert result['report']['execution_version']=='8.0'
+
+
+def test_cancel_fences_running_worker(service):
+    from xfagent.v2.graphs import require_lease,LeaseLost
+    store,client=service
+    login(client,'inspector')
+    identifier=client.post('/api/inspect',json={'query':'q','project_id':'default','use_model':False}).json()['id']
+    store.claim(identifier,'worker')
+    assert client.post('/api/jobs/'+identifier+'/cancel',json={'expected_revision':1}).status_code==200
+    with pytest.raises(LeaseLost):require_lease(store,{'run_id':identifier,'execution_worker':'worker'})
+    assert not store.finish(identifier,'worker',{'status':'complete'})
+    assert client.get('/api/reports/'+identifier).json()['status']=='cancelled'

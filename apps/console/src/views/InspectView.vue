@@ -81,7 +81,6 @@ async function submit() {
   <div class="container feature-page">
     <header class="page-heading">
       <div>
-        <p class="kicker">INSPECTION</p>
         <h1>{{ original ? '补充巡检报告' : '提交巡检' }}</h1>
         <p>描述问题并上传设施照片，生成带法规依据的核查草稿。</p>
       </div>

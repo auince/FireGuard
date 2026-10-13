@@ -4,6 +4,7 @@ import os
 from pathlib import Path
 
 os.environ.setdefault('XFAGENT_ROOT', str(Path(__file__).resolve().parents[1]))
+os.environ.setdefault('XF_HARNESS_VERSION','8')
 os.environ.setdefault('XF_V2_DB', 'xfagent_production')
 os.environ.setdefault('XF_V2_REDIS', 'redis://127.0.0.1:6379/2')
 

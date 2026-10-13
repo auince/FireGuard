@@ -64,7 +64,6 @@ onBeforeUnmount(() => {
   <div class="container feature-page">
     <header class="page-heading">
       <div>
-        <p class="kicker">AGENT HARNESS</p>
         <h1>执行链路</h1>
         <p>查看实际节点顺序、耗时、检索查询和验证结果。</p>
       </div>

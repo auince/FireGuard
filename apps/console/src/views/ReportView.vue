@@ -43,7 +43,6 @@ onBeforeUnmount(() => {
   <div class="container feature-page">
     <header class="page-heading">
       <div>
-        <p class="kicker">REPORT DETAIL</p>
         <h1>巡检报告详情</h1>
         <p>现场输入、隐患建议、原文依据与复核记录。</p>
       </div>

@@ -38,6 +38,9 @@ if not target.db.settings.find_one({'_id':'active_snapshot'}):
 target.db.policies.update_one({'_id':'baseline-v2'},{'$setOnInsert':{'state':'active','project_id':args.project,
     'spec':Strategy(name='基础策略').model_dump(),'version':1,'created_at':now()}},upsert=True)
 credentials={}
+credential_path=Path(args.credentials)
+if credential_path.exists() and any(not target.db.users.find_one({'_id':r}) for r in ['inspector','reviewer','admin']):
+    raise SystemExit('Credential file already exists; choose a new --credentials path before creating accounts')
 for role in ['inspector','reviewer','admin']:
     if target.db.users.find_one({'_id':role}):continue
     salt=secrets.token_bytes(16);password=secrets.token_urlsafe(24)

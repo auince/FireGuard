@@ -64,6 +64,7 @@ async function act(action) {
   }
 }
 
+async function cancelRun(){if(!window.confirm('取消此任务？当前生成将停止，已有记录保留。'))return;try{await post('/jobs/'+props.report.id+'/cancel',{expected_revision:props.report.revision});emit('updated',null)}catch(e){error.value=e.message}}
 function expand(id) {
   const details = document.getElementById(id)
   if (details) { details.open = true; details.scrollIntoView({block: 'center', behavior: 'smooth'}) }
@@ -150,7 +151,8 @@ function expand(id) {
         <p v-for="text in report.answer.missing_information" :key="text">• {{ text }}</p>
       </div>
 
-      <div class="actions">
+      <p v-if="error" class="message error">{{error}}</p><div class="actions">
+        <button v-if="report.durable_status && ['queued','running'].includes(report.status)" class="btn btn-outline" @click="cancelRun">取消任务</button>
         <button v-if="report.durable_status === 'failed'" class="btn btn-secondary" @click="post('/jobs/'+report.id+'/resume',{}).then(()=>emit('updated',null)).catch(e=>error=e.message)">从检查点恢复</button>
         <router-link
           v-if="report.owner === authState.user?.username && report.session_id"

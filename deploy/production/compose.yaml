@@ -1,0 +1,38 @@
+# Connect to managed MongoDB replica set, Redis, Milvus and model services.
+# This file intentionally does not expose databases or ship default credentials.
+services:
+  api:
+    build:
+      context: ../..
+      dockerfile: deploy/production/Dockerfile
+    image: xfagent-service:local
+    env_file: .env
+    command: ["python", "scripts/service.py", "serve", "--host", "0.0.0.0", "--port", "8000"]
+    ports: ["127.0.0.1:8080:8000"]
+    volumes: ["uploads:/app/runtime"]
+    restart: unless-stopped
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs: ["/tmp"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request;urllib.request.urlopen('http://127.0.0.1:8000/health/ready',timeout=8)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+  worker:
+    image: xfagent-service:local
+    build:
+      context: ../..
+      dockerfile: deploy/production/Dockerfile
+    env_file: .env
+    command: ["python", "scripts/service.py", "worker"]
+    volumes: ["uploads:/app/runtime"]
+    restart: unless-stopped
+    stop_grace_period: 330s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: ["ALL"]
+    read_only: true
+    tmpfs: ["/tmp"]
+volumes:
+  uploads:

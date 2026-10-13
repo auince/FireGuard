@@ -13,7 +13,7 @@ def run_replay(store,policy_id,run_ids,project):
     path=ROOT/'benchmarks/inspection_scenarios/v2/cases.jsonl'
     protected=[c for c in map(json.loads,path.read_text().splitlines()) if c['split']=='holdout'] if path.exists() else []
     protected_queries={c['input']['query'] for c in protected};protected_images={c.get('image_sha256') for c in protected if c.get('image_sha256')}
-    g=inspection_graph(store);results=[];code_hash=execution_hash();routes_hash=digest(manifest())
+    g=inspection_graph(store,governed=__import__('os').getenv('XF_HARNESS_VERSION')=='8');results=[];code_hash=execution_hash();routes_hash=digest(manifest())
     for source_id in dict.fromkeys(run_ids):
         source=store.db.jobs.find_one({'_id':source_id,'project_id':project,'kind':{'$in':['inspection','retrieval']}})
         if not source:raise ValueError('invalid source run')

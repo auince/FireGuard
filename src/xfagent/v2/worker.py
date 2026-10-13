@@ -8,7 +8,7 @@ from .graphs import inspection_graph
 from .feedback import feedback_graph,cluster_gaps
 from .replay import run_replay
 
-STREAM='xfv2:jobs';GROUP='workers'
+STREAM=os.getenv('XF_QUEUE_STREAM','xfv2:jobs');GROUP=os.getenv('XF_QUEUE_GROUP','workers')
 
 def drain_outbox(store,r):
     for item in store.db.outbox.find({'sent':False}).sort('created_at',1).limit(100):
@@ -61,13 +61,18 @@ def execute(store,g,job,worker):
 def main():
     import threading
     store=Store();store.setup();r=redis.Redis.from_url(REDIS,decode_responses=True,socket_timeout=5)
-    worker='worker-'+uuid.uuid4().hex;g=inspection_graph(store)
+    worker='worker-'+uuid.uuid4().hex;g=inspection_graph(store,governed=os.getenv('XF_HARNESS_VERSION')=='8')
     try:r.xgroup_create(STREAM,GROUP,id='0',mkstream=True)
     except redis.ResponseError as exc:
         if 'BUSYGROUP' not in str(exc):raise
     next_reconcile=0
-    while True:
+    import signal
+    stop=threading.Event()
+    if threading.current_thread() is threading.main_thread():
+        for sig in (signal.SIGTERM,signal.SIGINT):signal.signal(sig,lambda *_:stop.set())
+    while not stop.is_set():
         try:
+            store.db.workers.update_one({'_id':worker},{'$set':{'heartbeat_at':now(),'state':'idle','queue':STREAM}},upsert=True)
             if time.monotonic()>=next_reconcile:
                 store.recover_dispatch();next_reconcile=time.monotonic()+60
             drain_outbox(store,r)
@@ -83,9 +88,13 @@ def main():
                     current=store.db.jobs.find_one({'_id':fields['job_id']})
                     if current and current['status'] not in ['queued','running']:r.xack(STREAM,GROUP,message_id)
                     continue
+                if job['attempts']>6:
+                    store.finish(job['_id'],worker,{'status':'failed','error':'recovery_attempt_limit'});r.xack(STREAM,GROUP,message_id);continue
+                store.db.workers.update_one({'_id':worker},{'$set':{'state':'running','run_id':job['_id']}})
                 done=threading.Event()
                 def heartbeat():
                     while not done.wait(30):
+                        store.db.workers.update_one({'_id':worker},{'$set':{'heartbeat_at':now()}})
                         store.db.jobs.update_one({'_id':job['_id'],'worker':worker,'status':'running','lease_until':{'$gt':now()}},
                             {'$set':{'lease_until':now()+timedelta(seconds=360)}})
                 thread=threading.Thread(target=heartbeat,daemon=True);thread.start()
@@ -93,6 +102,6 @@ def main():
                 finally:done.set()
                 r.xack(STREAM,GROUP,message_id)
         except Exception as exc:
-            print('worker loop:',type(exc).__name__,str(exc)[:300],flush=True);time.sleep(2)
+            print('worker loop:',type(exc).__name__,str(exc)[:300],flush=True);stop.wait(2)
 
 if __name__=='__main__':main()

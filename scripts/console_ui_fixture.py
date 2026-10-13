@@ -9,6 +9,7 @@ import threading
 from pathlib import Path
 
 root=Path(__file__).resolve().parents[1]
+os.environ['XF_HARNESS_VERSION']='8'
 os.environ['XFAGENT_ROOT']=str(root)
 os.environ['XF_V2_DB']='xfagent_console_fixture'
 os.environ['XF_V2_REDIS']='redis://127.0.0.1:6379/3'

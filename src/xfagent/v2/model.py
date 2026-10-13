@@ -27,7 +27,7 @@ def fit_payload(state,instruction,payload,image,route=None):
         if text in seen:item['parent_context_reference']=seen[text];item.pop('parent_text')
         else:seen[text]=item['evidence_id']
     if count()<=budget:return value
-    for key in ['conversation_background_not_current_facts','non_authoritative_experience','report_preferences']:
+    for key in ['historical_cases_not_current_facts','conversation_background_not_current_facts','non_authoritative_experience','report_preferences']:
         if key in value and value[key]:
             value[key]=[];state.setdefault('warnings',[]).append('context_budget_removed:'+key)
             if count()<=budget:return value

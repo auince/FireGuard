@@ -38,7 +38,7 @@ def create_app(store=None):
 
     @asynccontextmanager
     async def lifespan(app):
-        secret()
+        if secret().startswith("REPLACE_"):raise RuntimeError("Configure a random JWT secret")
         storage.setup()
         storage.db.policies.update_one({'_id':'baseline-v2'},{'$setOnInsert':{
             'state':'active','project_id':'default','spec':Strategy(name='基础策略').model_dump(),
@@ -46,7 +46,7 @@ def create_app(store=None):
         storage.db.auth_sessions.create_index('expires_at', expireAfterSeconds=0)
         yield
 
-    app = FastAPI(title='消防巡检管理平台', version='7.0.0', lifespan=lifespan)
+    app = FastAPI(title='消防巡检管理平台', version='8.0.0', lifespan=lifespan)
     app.state.store = storage
     hosts = os.getenv('XF_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
@@ -129,7 +129,49 @@ def create_app(store=None):
 
     @app.get('/api/health')
     def health():
-        return {'stage': 7, 'model': MODEL, 'inference': os.getenv('XF_INFERENCE_MODE','external_service'), 'execution': 'durable_worker'}
+        return {'stage': 8, 'model': MODEL, 'inference': os.getenv('XF_INFERENCE_MODE','external_service'), 'execution': 'durable_worker'}
+
+    @app.get('/health/live')
+    def live():
+        return {'status':'alive'}
+
+    @app.get('/health/ready')
+    def ready():
+        import redis
+        from xfagent.v2.config import REDIS
+        checks={}
+        try:
+            storage.db.command('ping');checks['database']=True
+            checks['knowledge']=bool(storage.db.settings.find_one({'_id':'active_snapshot'}))
+            checks['worker']=bool(storage.db.workers.find_one({'heartbeat_at':{'$gt':now()-timedelta(seconds=75)}}))
+        except Exception:
+            checks.update(database=False,knowledge=False,worker=False)
+        try:checks['queue']=bool(redis.Redis.from_url(REDIS,socket_connect_timeout=2,socket_timeout=2).ping())
+        except redis.RedisError:checks['queue']=False
+        return JSONResponse({'ready':all(checks.values()),'checks':checks},status_code=200 if all(checks.values()) else 503)
+
+    @app.get('/api/harness')
+    def harness(who: Actor = Depends(current)):
+        return {'version':'8.0','stages':['Intent','Rewrite','Retrieval','Answer','Verify'],
+                'limits':{'model_calls':16,'active_seconds':300,'retrieval_rounds':2,'answer_repairs':2},
+                'checkpoint':'MongoDB','human_resume':True}
+
+    @app.post('/api/jobs/{identifier}/cancel')
+    def cancel(identifier: str, body: dict, who: Actor = Depends(current)):
+        row=storage.db.jobs.find_one({'_id':identifier});access(who,row)
+        changed=storage.db.jobs.update_one({'_id':identifier,'revision':body.get('expected_revision'),
+            'status':{'$in':['queued','running','awaiting_review','awaiting_information']}},
+            {'$set':{'status':'cancelled','cancelled_by':who.user_id,'cancelled_at':now()},'$inc':{'revision':1},
+             '$unset':{'worker':'','lease_until':''}})
+        if not changed.modified_count:raise HTTPException(409,'当前任务不可取消或版本已变化')
+        storage.audit(identifier,'cancel:'+str(row['revision']),'job_cancelled',actor=who.user_id)
+        return {'id':identifier,'status':'cancelled'}
+
+    @app.get('/api/metrics')
+    def metrics(who: Actor = Depends(current)):
+        from xfagent.v2.auth import admin
+        admin(who)
+        return core.metrics()
 
     def scoped(who):
         query = {'project_id': {'$in': who.projects}, 'kind': {'$in': ['inspection', 'retrieval', 'annotation']}}
@@ -160,6 +202,7 @@ def create_app(store=None):
                          verification=report.get('verification', {}), trace=state.get('trace', []),
                          model=report.get('model_version', MODEL), model_calls=state.get('calls', 0),
                          warnings=report.get('warnings', []), error=row.get('error'),
+                         snapshot_id=state.get('snapshot_id'),queries=state.get('queries',[]),telemetry=state.get('retrieval_telemetry',{}),
                          answer={'hazards': [{'description': c['text'], 'suggestion': c.get('recommendation', ''),
                                               'evidence_ids': c.get('evidence_ids', [])} for c in conclusions],
                                  'missing_information': report.get('verification', {}).get('missing_fields', [])})
@@ -176,6 +219,7 @@ def create_app(store=None):
     def report(identifier: str, who: Actor = Depends(current)):
         row = storage.db.jobs.find_one({'_id': identifier})
         access(who, row)
+        if row['kind'] not in {'inspection','retrieval','annotation'}:raise HTTPException(404,'巡检报告不存在')
         return report_view(row, True)
 
     @app.post('/api/reports/{identifier}/review', status_code=202)
@@ -258,7 +302,7 @@ def create_app(store=None):
 
     app.include_router(platform)
 
-    dist = ROOT / 'apps/practice/dist'
+    dist = ROOT / 'apps/console/dist'
     if dist.is_dir():
         app.mount('/assets', StaticFiles(directory=dist/'assets'), name='assets')
 

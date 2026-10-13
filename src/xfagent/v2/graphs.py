@@ -49,6 +49,8 @@ def safe_node(store,name,fn):
             if s.get('active_seconds',0)>=300 and name not in ['review_ready','verify']:raise BudgetExhausted('active_time_limit')
             with node_scope(store,s,name):
                 values=fn(s) or {}
+        except LeaseLost:
+            raise
         except Exception as exc:
             outcome='budget_exhausted' if isinstance(exc,BudgetExhausted) else 'error'
             values={'warnings':s.get('warnings',[])+[name+':'+type(exc).__name__+':'+str(exc)[:180]]}
@@ -65,7 +67,8 @@ def safe_node(store,name,fn):
                'warnings':values.get('warnings',[])[initial_warnings:]}
         event['degraded']=bool(event['warnings'])
         event['project_id']=s.get('request',{}).get('project_id');event['owner']=s.get('owner')
-        event['execution_version']='2.2'
+        event['execution_version']=s.get('execution_version','2.2')
+        event['stage']={'intent':'Intent','rewrite':'Rewrite','retrieve':'Retrieval','draft':'Answer','verify':'Verify','repair':'Verify'}.get(name,'Intent' if ':' in name else 'Governance')
         values['trace']=s.get('trace',[])+[event]
         store.audit(s['run_id'],str(len(s.get('trace',[])))+':'+name,'node_complete',**event)
         return values
@@ -115,13 +118,13 @@ def facility_graph(store,facility):
     g.add_edge(START,'detector');g.add_edge('detector','observe');g.add_edge('observe','specialist');g.add_edge('specialist',END)
     return g.compile()
 
-def inspection_graph(store,checkpointer=True):
+def inspection_graph(store,checkpointer=True,governed=False):
     memory=MemoryContextBuilder(store);policies=Policies(store);retriever=Retrieval(store)
     def context(s):
         r=s['request']
         context=s['frozen_memory'] if 'frozen_memory' in s else memory.build(s['owner'],r['project_id'],r['session_id'],s['snapshot_id'],r['as_of'],r['jurisdiction'])
         return {'memory':context,'warnings':s.get('warnings',[])+context.get('warnings',[]),
-                'execution_version':'2.2','model_routes':manifest(),'model_routes_hash':digest(manifest()),'model_version':MODEL,
+                'execution_version':'8.0' if governed else '2.2','model_routes':manifest(),'model_routes_hash':digest(manifest()),'model_version':MODEL,
                 'model_fingerprint':(store.db.settings.find_one({'_id':'generator_fingerprint'}) or {}).get('value','unavailable')}
     def intent(s):
         r=s['request'];facility=r.get('facility','auto')
@@ -253,8 +256,38 @@ def inspection_graph(store,checkpointer=True):
         if action=='reject':report['status']='rejected';return {'report':report,'status':'complete'}
         report['review_comment']=s['review'].get('comment','')
         if s['review'].get('confirmed_scene'):
-            return {'report':report,'request':r,'status':'redrafting','rewrites':0}
+            return {'report':report,'request':r,'status':'redrafting','rewrites':0,'retrieval_rounds':0}
         return {'report':report,'request':r,'status':'awaiting_information','rewrites':0}
+    if governed:
+        intent_flow=StateGraph(State)
+        intent_flow.add_node('classify',safe_node(store,'intent',intent))
+        intent_flow.add_edge(START,'classify')
+        for facility in FACILITIES:
+            intent_flow.add_node(facility,facility_graph(store,facility))
+            intent_flow.add_edge(facility,END)
+        intent_flow.add_conditional_edges('classify',lambda s:s['facility'] if s.get('facility') in FACILITIES and s['request'].get('processed_image_path') and s['request'].get('use_model',True) else END)
+        correction=StateGraph(State)
+        for name,fn in [('verify',check),('repair',repair),('draft',draft),('rewrite',rewrite),('retrieve',retrieve)]:
+            correction.add_node(name,safe_node(store,name,fn))
+        correction.add_edge(START,'verify')
+        correction.add_conditional_edges('verify',lambda s:END if verification_route(s)=='review_ready' else verification_route(s))
+        correction.add_edge('repair','draft');correction.add_edge('draft','verify')
+        correction.add_edge('rewrite','retrieve');correction.add_edge('retrieve','draft')
+        g=StateGraph(State)
+        g.add_node('context',safe_node(store,'context',context))
+        g.add_node('Intent',intent_flow.compile())
+        g.add_node('Rewrite',safe_node(store,'rewrite',rewrite))
+        g.add_node('Retrieval',safe_node(store,'retrieve',retrieve))
+        g.add_node('Answer',safe_node(store,'draft',draft))
+        g.add_node('Verify',correction.compile())
+        g.add_node('review_ready',safe_node(store,'review_ready',review_ready))
+        g.add_node('human',human);g.add_node('finalize',safe_node(store,'finalize',finalize))
+        chain=[START,'context','Intent','Rewrite','Retrieval','Answer','Verify','review_ready','human','finalize']
+        for left,right in zip(chain,chain[1:]):g.add_edge(left,right)
+        # A new human decision is a new pass; automatic corrections stay inside Verify.
+        g.add_conditional_edges('finalize',lambda s:END if s['status']=='complete' else ('Rewrite' if s['status']=='redrafting' else 'human'))
+        cp=MongoDBSaver(store.client,db_name=store.db.name,checkpoint_collection_name='checkpoints',writes_collection_name='checkpoint_writes') if checkpointer else None
+        return g.compile(checkpointer=cp)
     g=StateGraph(State)
     for name,fn in [('context',context),('intent',intent),('rewrite',rewrite),('retrieve',retrieve),('draft',draft),('verify',check),('repair',repair),('review_ready',review_ready)]:
         g.add_node(name,safe_node(store,name,fn))

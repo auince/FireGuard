@@ -68,7 +68,6 @@ onMounted(async () => {
   <div class="container feature-page">
     <header class="page-heading">
       <div>
-        <p class="kicker">MEMORY</p>
         <h1>记忆管理</h1>
         <p>查看系统会记住什么，并自行管理长期回答偏好。</p>
       </div>

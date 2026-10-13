@@ -75,7 +75,6 @@ onMounted(catalog)
   <div class="container feature-page">
     <header class="page-heading">
       <div>
-        <p class="kicker">REGULATION LIBRARY</p>
         <h1>法规库</h1>
         <p>浏览当前事实库的有效版本，查看完整原文和条款出处。</p>
       </div>

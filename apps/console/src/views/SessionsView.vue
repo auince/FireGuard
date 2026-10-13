@@ -109,7 +109,6 @@ onBeforeUnmount(() => {
   <div class="container feature-page">
     <header class="page-heading">
       <div>
-        <p class="kicker">CONVERSATIONS</p>
         <h1>多轮巡检</h1>
         <p>围绕同一次巡检继续追问，每轮结论都保留独立报告与审核状态。</p>
       </div>
@@ -146,7 +145,6 @@ onBeforeUnmount(() => {
             <p>可以追问"这个如何整改"，也可以上传新照片开始核查另一处设施。</p>
           </div>
           <article v-for="(turn, i) in turns" :key="turn.id" class="conversation-turn">
-            <p class="kicker">第 {{ i + 1 }} 轮 · {{ statusLabel(turn.status) }}</p>
             <h3>{{ turn.query }}</h3>
 
             <p v-if="turn.model?.includes('fixture')" class="muted">仿真响应 · 用于流程演示</p>

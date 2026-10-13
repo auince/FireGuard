@@ -7,7 +7,7 @@ PROTOCOL='paired-engineering-v2.2'
 
 def execution_hash():
     root=Path(__file__).parent
-    return hashlib.sha256(''.join(p.name+hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(root.glob('*.py'))).encode()).hexdigest()
+    return hashlib.sha256(''.join(p.name+hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted([*root.glob('*.py'),root.parent/'evidence_vision.py'])).encode()).hexdigest()
 
 def retrieval_metrics(ids,gold):
     if gold is None:return None
