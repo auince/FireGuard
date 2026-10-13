@@ -2,6 +2,7 @@
 import { computed, ref, watch } from 'vue'
 import { post, statusLabel, safeSource } from '@/api'
 import { authState } from '@/stores/auth'
+import ReviewEditor from './ReviewEditor.vue'
 import VisualEvidence from './VisualEvidence.vue'
 
 const props = defineProps({
@@ -13,15 +14,16 @@ const emit = defineEmits(['updated'])
 const busy = ref(false)
 const comment = ref('')
 const error = ref('')
+const currentReportId = ref(null)
 
 const canReview = computed(() =>
   props.review &&
   ['reviewer', 'admin'].includes(authState.user?.role) &&
-  ['pending', 'blocked'].includes(props.report.status)
+  ['pending', 'blocked', 'returned'].includes(props.report.status)
 )
 
 const canRevise = computed(() =>
-  ['returned', 'blocked', 'failed'].includes(props.report.status) &&
+  !props.report.durable_status && ['returned', 'blocked', 'failed'].includes(props.report.status) &&
   (props.report.owner === authState.user?.username || authState.user?.role === 'admin')
 )
 
@@ -30,29 +32,33 @@ const numbering = computed(() =>
 )
 
 // Clear comment when switching between reports in review mode
-watch(() => props.report.id, () => {
+watch(() => props.report.id, (newId) => {
+  currentReportId.value = newId
   comment.value = ''
   error.value = ''
-})
+}, { immediate: true })
 
 async function act(action) {
-  if (busy.value) return
+  if (busy.value || currentReportId.value !== props.report.id) return
   const reportId = props.report.id
+  const revision = props.report.revision
   busy.value = true
   error.value = ''
   try {
-    const result = await post('/reports/' + props.report.id + '/review', {
-      expected_revision: props.report.revision,
+    const result = await post('/reports/' + reportId + '/review', {
+      expected_revision: revision,
       action,
       comment: comment.value
     })
-    if (props.report.id !== reportId) return
-    comment.value = ''
-    emit('updated', result)
+    if (currentReportId.value === reportId) {
+      comment.value = ''
+      emit('updated', result)
+    }
   } catch (e) {
-    if (props.report.id !== reportId) return
-    error.value = e.message
-    if (e.status === 409) emit('updated', null)
+    if (currentReportId.value === reportId) {
+      error.value = e.message
+      if (e.status === 409) emit('updated', null)
+    }
   } finally {
     busy.value = false
   }
@@ -70,9 +76,8 @@ function expand(id) {
     <section class="card">
       <div class="page-heading">
         <div>
-          <p class="kicker">INSPECTION REPORT</p>
           <h2>{{ report.query }}</h2>
-          <p>{{ report.id.slice(0, 12) }} · v{{ report.revision }} · {{ new Date(report.created_at * 1000).toLocaleString('zh-CN') }}</p>
+          <p class="report-meta">{{ report.id.slice(0, 12) }} · v{{ report.revision }} · {{ new Date(report.created_at * 1000).toLocaleString('zh-CN') }}</p>
         </div>
         <span class="pill" :class="report.status === 'approved' ? 'good' : 'warn'">
           {{ statusLabel(report.status) }}
@@ -98,11 +103,35 @@ function expand(id) {
         </span>
       </p>
 
+      <article v-if="report.conclusions?.length" class="conclusions-section">
+        <h3 class="section-title">审核结论</h3>
+        <div v-for="(claim, i) in report.conclusions" :key="claim.claim_id" class="conclusion-block">
+          <div class="conclusion-header">
+            <strong>{{ i + 1 }}. {{ claim.text }}</strong>
+            <div class="conclusion-badges">
+              <span class="badge" :class="claim.kind">{{ {observation:'现场观察',information_request:'待核实',legal_assessment:'法规判断'}[claim.kind] }}</span>
+              <span v-if="claim.applicability==='supported'" class="badge good">适用</span>
+              <span v-if="claim.applicability==='not_applicable'" class="badge muted">不适用</span>
+              <span v-if="claim.sufficiency==='sufficient'" class="badge good">材料充分</span>
+              <span v-if="claim.sufficiency==='insufficient'" class="badge warn">材料不足</span>
+            </div>
+          </div>
+          <p v-if="claim.recommendation" class="recommendation">整改建议：{{ claim.recommendation }}</p>
+          <div v-if="claim.missing_fields?.length" class="missing-fields">
+            <strong>待补充条件：</strong>{{ claim.missing_fields.join('、') }}
+          </div>
+          <div v-if="claim.observation_ids?.length||claim.evidence_ids?.length" class="claim-references">
+            <span v-if="claim.observation_ids?.length" class="ref-group">关联观察 {{ claim.observation_ids.length }} 项</span>
+            <span v-if="claim.evidence_ids?.length" class="ref-group">关联依据
+              <a v-for="eid in claim.evidence_ids" :key="eid" :href="'#ev-'+report.id+'-'+numbering.get(eid)" class="citation" @click.prevent="expand('ev-'+report.id+'-'+numbering.get(eid))">[{{ numbering.get(eid) }}]</a>
+            </span>
+          </div>
+        </div>
+      </article>
 
-
-      <article v-for="(hazard, i) in report.answer?.hazards || []" :key="i" class="report-block">
+      <article v-for="(hazard, i) in (report.conclusions ? [] : report.answer?.hazards || [])" :key="i" class="report-block">
         <h3>{{ i + 1 }}. {{ hazard.description }}</h3>
-        <p>整改建议：{{ hazard.suggestion }}</p>
+        <p v-if="hazard.suggestion">整改建议：{{ hazard.suggestion }}</p>
         <div class="citations">
           <a
             v-for="eid in hazard.evidence_ids"
@@ -122,6 +151,7 @@ function expand(id) {
       </div>
 
       <div class="actions">
+        <button v-if="report.durable_status === 'failed'" class="btn btn-secondary" @click="post('/jobs/'+report.id+'/resume',{}).then(()=>emit('updated',null)).catch(e=>error=e.message)">从检查点恢复</button>
         <router-link
           v-if="report.owner === authState.user?.username && report.session_id"
           :to="{path:'/sessions',query:{id:report.session_id}}"
@@ -171,7 +201,8 @@ function expand(id) {
       </details>
     </section>
 
-    <section v-if="canReview" class="card review-section">
+    <ReviewEditor v-if="canReview && report.conclusions" :report="report" @updated="emit('updated', $event)"/>
+    <section v-if="canReview && !report.conclusions" class="card review-section">
       <h2 class="subheading">人工审核</h2>
       <p class="muted">批准前重新核验条款和结论。证据不足时，请退回补充。</p>
       <label class="field">
@@ -216,6 +247,11 @@ function expand(id) {
   margin: 16px 0;
 }
 
+.report-meta {
+  color: var(--color-gray-600);
+  font-size: 14px;
+}
+
 .citations {
   display: flex;
   flex-wrap: wrap;
@@ -238,5 +274,135 @@ function expand(id) {
 
 .review-section {
   border: 2px solid var(--color-primary-subtle);
+}
+
+.conclusions-section {
+  margin: 24px 0;
+  padding: 20px;
+  background: var(--color-gray-50);
+  border-radius: 8px;
+  border: 1px solid var(--color-gray-200);
+}
+
+.section-title {
+  font-size: 18px;
+  font-weight: 650;
+  margin-bottom: 16px;
+  color: var(--color-gray-900);
+}
+
+.conclusion-block {
+  background: white;
+  border: 1px solid var(--color-gray-200);
+  border-radius: 6px;
+  padding: 16px;
+  margin-bottom: 16px;
+}
+
+.conclusion-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.conclusion-header strong {
+  flex: 1;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.conclusion-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.badge {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.badge.observation {
+  background: var(--color-blue-100);
+  color: var(--color-blue-700);
+}
+
+.badge.information_request {
+  background: var(--color-orange-100);
+  color: var(--color-orange-700);
+}
+
+.badge.legal_assessment {
+  background: var(--color-purple-100);
+  color: var(--color-purple-700);
+}
+
+.badge.good {
+  background: var(--color-green-100);
+  color: var(--color-green-700);
+}
+
+.badge.warn {
+  background: var(--color-red-100);
+  color: var(--color-red-700);
+}
+
+.badge.muted {
+  background: var(--color-gray-100);
+  color: var(--color-gray-600);
+}
+
+.recommendation {
+  margin: 8px 0;
+  padding: 10px;
+  background: var(--color-blue-50);
+  border-left: 3px solid var(--color-primary);
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.missing-fields {
+  margin: 8px 0;
+  padding: 10px;
+  background: var(--color-orange-50);
+  border-left: 3px solid var(--color-orange-500);
+  border-radius: 4px;
+  font-size: 13px;
+}
+
+.missing-fields strong {
+  color: var(--color-orange-700);
+}
+
+.claim-references {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 10px;
+  font-size: 13px;
+  color: var(--color-gray-600);
+}
+
+.ref-group {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+@media (max-width: 600px) {
+  .conclusion-header {
+    flex-direction: column;
+  }
+
+  .conclusion-badges {
+    width: 100%;
+  }
 }
 </style>

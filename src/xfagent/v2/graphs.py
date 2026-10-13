@@ -84,17 +84,10 @@ CHECKS={
 
 def facility_graph(store,facility):
     def detect(s):
-        im=image_data(s['request'])
-        if not im:return {'observations':[]}
-        r=requests.post('http://127.0.0.1:8007/detect',json={'image':im,'facility':facility},timeout=(3,35));r.raise_for_status()
-        found=r.json();cases=[]
-        for i,d in enumerate(found.get('detections',[])):d['detector_id']='d'+str(i+1)
-        try:
-            c=requests.post('http://127.0.0.1:8007/cases',json={'query':s['request']['query'],'kind':'text'},timeout=(2,12));c.raise_for_status()
-            cases=[{'case_id':x['id'],'description':x['description'],'score':x['score'],'authority':'historical_case_not_current_fact','review_status':'legacy_review_unverified'} for x in c.json()[:3]]
-        except requests.RequestException:pass
-        value={'detector':{k:found.get(k) for k in ['enabled','detections','modelScope','reason','classes'] if k in found},'similar_cases':cases}
-        if 'failed' in str(found.get('reason','')).lower():value['warnings']=s.get('warnings',[])+['detector_unavailable:'+str(found['reason'])]
+        from xfagent.evidence_vision import VisionEvidence
+        req={**s['request'],'image':image_data(s['request'])}
+        value=VisionEvidence().analyze(req,facility,time.monotonic()+max(.1,300-s.get('active_seconds',0)))
+        value['warnings']=s.get('warnings',[])+value['warnings']
         return value
     def observe(s):
         im=image_data(s['request'])
@@ -146,7 +139,7 @@ def inspection_graph(store,checkpointer=True):
     def rewrite(s):
         r=s['request'];queries=[r['query']]
         working=s.get('memory',{}).get('working',{})
-        if working.get('facility') and working['facility']!=s.get('facility'):working={}
+        if (working.get('facility') and working['facility']!=s.get('facility')) or r.get('processed_image_path'):working={}
         if r.get('use_model',True) and not s.get('exhausted'):
             obj=complete(s,'结合已确认设施、原话及上下文生成最多2条独立法规检索问题，保持日期、地域及条件，不引入猜测。输出 {"queries":["..."]}。',
                 {'query':r['query'],'facility':s.get('facility'),'observations':s.get('observations',[]),
@@ -183,10 +176,11 @@ def inspection_graph(store,checkpointer=True):
         aliases={'e'+str(i+1):e['evidence_id'] for i,e in enumerate(s['evidence'])}
         evidence=[{**{k:e[k] for k in ['text','document_title','conditions','parent_text'] if k in e},'evidence_id':'e'+str(i+1)} for i,e in enumerate(s['evidence'])]
         spec=s.get('policy',{}).get('spec',{})
-        obj=complete(s,'生成核查草稿，最多4条结论，每条text不超过100字；不要重复引文全文。返回 {"conclusions":[...]}。引用使用本次给定的e1/e2等短编号，不生成长哈希。每条必须显式填写kind：单纯描述图像用observation，提示补测或无法判断用information_request；只有关联法规判定才用legal_assessment且evidence_ids不得为空。检索条款不相关时保留现场观察和待核查问题，不能硬套。每条符合 schema。引用仅用给定 evidence_id；现场判断必须关联 observation_id；未知条件保留 missing_fields。信息不全时 applicability=unknown、sufficiency=insufficient。',
+        obj=complete(s,'recommendation填写整改建议，不得在建议中编造实测值或法规结论。历史案例只作思路参考，不能引用为本次事实或法律依据。生成核查草稿，最多4条结论，每条text不超过100字；不要重复引文全文。返回 {"conclusions":[...]}。引用使用本次给定的e1/e2等短编号，不生成长哈希。每条必须显式填写kind：单纯描述图像用observation，提示补测或无法判断用information_request；只有关联法规判定才用legal_assessment且evidence_ids不得为空。检索条款不相关时保留现场观察和待核查问题，不能硬套。每条符合 schema。引用仅用给定 evidence_id；现场判断必须关联 observation_id；未知条件保留 missing_fields。信息不全时 applicability=unknown、sufficiency=insufficient。',
             {'schema':Conclusion.model_json_schema(),'query':r['query'],'scene':r['scene'],'observations':s.get('observations',[]),
              'evidence':evidence,'prior_errors':s.get('verification',{}).get('errors',[]),'template':spec.get('template','standard'),
              'report_preferences':s.get('memory',{}).get('preferences',[]),
+             'historical_cases_not_current_facts':s.get('similar_cases',[]),
              'non_authoritative_experience':s.get('memory',{}).get('organization',[]),
              'conversation_background_not_current_facts':s.get('memory',{}).get('episodic',[])},role='answer')
         rows=[Conclusion.model_validate(x).model_dump() for x in obj.get('conclusions',[])[:8]]
@@ -231,7 +225,7 @@ def inspection_graph(store,checkpointer=True):
         if not s.get('verification'):s['verification']=verify(store,s)
         report={'run_id':s['run_id'],'status':'draft','facility':s.get('facility','unknown'),'snapshot_id':s['snapshot_id'],'execution_version':s.get('execution_version','2.0'),
                 'model_version':s.get('model_version',MODEL),'model_routes':s.get('model_routes',{}),'model_fingerprint':s.get('model_fingerprint'),'policy_version':s.get('policy',{}).get('policy_id','baseline-v2'),
-                'observations':s.get('observations',[]),'similar_cases':s.get('similar_cases',[]),'evidence':s.get('evidence',[]),'conclusions':s['conclusions'],
+                'detector':s.get('detector',{}),'observations':s.get('observations',[]),'similar_cases':s.get('similar_cases',[]),'evidence':s.get('evidence',[]),'conclusions':s['conclusions'],
                 'verification':s['verification'],'warnings':s.get('warnings',[]),'professional_review':'pending'}
         if not s.get('forced_policy'):
             memory.remember(s);policies.record(s)
@@ -252,10 +246,10 @@ def inspection_graph(store,checkpointer=True):
                 if isinstance(exc,BudgetExhausted):s['exhausted']=True
             if not result['passed']:
                 report.update(conclusions=claims,verification=result,status='draft')
-                return {'report':report,'verification':result,'status':'awaiting_review','request':r}
+                return {'report':report,'verification':result,'status':'awaiting_review','request':r,'conclusions':claims}
             report.update(conclusions=claims,verification=result,status='final',reviewer=s['review'].get('reviewer'),
                           review_comment=s['review'].get('comment',''),finalized_at=now().isoformat(),professional_review='human_reviewed_not_expert_certified')
-            return {'report':report,'status':'complete','request':r}
+            return {'report':report,'status':'complete','request':r,'conclusions':claims,'verification':result}
         if action=='reject':report['status']='rejected';return {'report':report,'status':'complete'}
         report['review_comment']=s['review'].get('comment','')
         if s['review'].get('confirmed_scene'):

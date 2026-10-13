@@ -1,5 +1,5 @@
 import {createRouter,createWebHistory} from 'vue-router'
-import {authState} from '@/stores/auth'
+import {authState,authActions} from '@/stores/auth'
 const routes=[
  {path:'/login',name:'Login',component:()=>import('@/views/AuthView.vue'),meta:{public:true,authLayout:true}},
  {path:'/',name:'Home',component:()=>import('@/views/DashboardView.vue')},
@@ -15,5 +15,5 @@ const routes=[
  {path:'/:pathMatch(.*)*',redirect:'/'}
 ]
 const router=createRouter({history:createWebHistory(),routes,scrollBehavior:()=>({top:0})})
-router.beforeEach(to=>{if(!to.meta.public&&!authState.user)return {name:'Login',query:{redirect:to.fullPath}};if(to.meta.authLayout&&authState.user)return '/';return true})
+router.beforeEach(async to=>{await authActions.initialize();if(!to.meta.public&&!authState.user)return {name:'Login',query:{redirect:to.fullPath}};if(to.meta.authLayout&&authState.user)return '/';return true})
 export default router

@@ -2,6 +2,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { ArrowRight, ShieldCheck } from 'lucide-vue-next'
+import SceneFields from '@/components/SceneFields.vue'
 import ImageUploader from '@/components/ImageUploader.vue'
 import { request, post } from '@/api'
 import { authState } from '@/stores/auth'
@@ -13,7 +14,7 @@ const uploading = ref(false)
 const busy = ref(false)
 const error = ref('')
 const original = ref(null)
-const scene = ref('')
+const scene = ref({})
 
 const localDate = new Date().toLocaleDateString('sv-SE')
 const form = reactive({
@@ -37,7 +38,7 @@ onMounted(async () => {
         retrieval_mode: r.retrieval_mode || 'rrf'
       })
       image.value = r.image
-      scene.value = JSON.stringify(r.scene || {}, null, 2)
+      scene.value = r.scene || {}
     } catch (e) {
       error.value = e.message
     }
@@ -52,10 +53,7 @@ async function submit() {
   error.value = ''
   busy.value = true
   try {
-    const values = scene.value.trim() ? JSON.parse(scene.value) : {}
-    if (!values || Array.isArray(values) || typeof values !== 'object') {
-      throw new Error('现场条件需要 JSON 对象')
-    }
+    const values = scene.value
     const input = {
       ...form,
       query: form.query.trim(),
@@ -141,11 +139,7 @@ async function submit() {
 
         <details class="scene-details">
           <summary class="muted">补充已确认的现场条件</summary>
-          <label class="field">
-            <span>现场条件（JSON，可留空）</span>
-            <textarea v-model="scene" class="input" placeholder='{"pressure_measurement": 0.2}'></textarea>
-            <small>只填写已确认的信息，模型不能代替现场测量。</small>
-          </label>
+          <SceneFields v-model="scene"/>
         </details>
 
         <p v-if="error" class="message error" role="alert">{{ error }}</p>

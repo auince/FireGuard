@@ -10,6 +10,7 @@ const rows = ref([])
 const selected = ref(null)
 const error = ref('')
 let generation = 0
+let timer = null
 
 const allowed = ['reviewer', 'admin'].includes(authState.user?.role)
 
@@ -28,7 +29,7 @@ async function choose(id) {
 async function refresh() {
   if (!allowed) return
   try {
-    rows.value = (await request('/reports')).reports.filter(r => ['pending', 'blocked'].includes(r.status))
+    rows.value = (await request('/reports')).reports.filter(r => ['pending', 'blocked', 'returned'].includes(r.status))
     error.value = ''
   } catch (e) {
     error.value = e.message
@@ -39,14 +40,16 @@ async function updated(report) {
   if (report) selected.value = report
   else if (selected.value) await choose(selected.value.id)
   await refresh()
+  if(report && ['queued','running'].includes(report.status)) poll(report.id)
 }
+function poll(id){clearTimeout(timer);timer=setTimeout(async()=>{if(selected.value?.id!==id)return;try{const r=await request('/reports/'+id);if(selected.value?.id!==id)return;selected.value=r;if(['queued','running'].includes(r.status))poll(id);else await refresh()}catch(e){error.value=e.message}},1500)}
 
 onMounted(async () => {
   await refresh()
   if (allowed && route.query.report) await choose(route.query.report)
 })
 
-onBeforeUnmount(() => generation++)
+onBeforeUnmount(() => {generation++;clearTimeout(timer)})
 </script>
 
 <template>
@@ -68,7 +71,7 @@ onBeforeUnmount(() => generation++)
       <p v-if="error" class="message error" role="alert">{{ error }}</p>
       <div class="review-layout">
         <aside class="review-sidebar">
-          <p class="muted">最近 50 份报告中的待审项 · {{ rows.length }} 份</p>
+          <p class="muted">最近 100 份报告中的待审项 · {{ rows.length }} 份</p>
           <button
             v-for="row in rows"
             :key="row.id"

@@ -36,8 +36,23 @@ class Review(Strict):
     expected_revision: int = Field(ge=1)
     action: Literal['approve','return','reject']
     comment: str = Field(default='',max_length=3000)
-    conclusions: list[dict] | None = None
+    conclusions: list[dict] | None = Field(default=None,max_length=20)
     confirmed_scene: dict = Field(default_factory=dict)
+
+    @field_validator('conclusions')
+    @classmethod
+    def valid_conclusions(cls, values):
+        if values is None:return None
+        return [Conclusion.model_validate(x).model_dump() for x in values]
+
+    @field_validator('confirmed_scene')
+    @classmethod
+    def valid_scene(cls, value):
+        value=InspectionInput.bounded_scene(value)
+        from .fact_checks import numeric_scene,UNITS
+        for key in UNITS:
+            if key in value:numeric_scene(value,key)
+        return value
 
 class Feedback(Strict):
     run_id: str
@@ -78,8 +93,9 @@ class Observation(Strict):
     source: Literal['vlm','detector','human'] = 'vlm'
 
 class Conclusion(Strict):
-    claim_id: str
-    text: str
+    claim_id: str = Field(min_length=1,max_length=100)
+    text: str = Field(max_length=3000)
+    recommendation: str = Field(default='',max_length=2000)
     observation_ids: list[str] = Field(default_factory=list)
     evidence_ids: list[str] = Field(default_factory=list)
     applicability: Literal['supported','unknown','not_applicable'] = 'unknown'

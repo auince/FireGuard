@@ -53,7 +53,7 @@ def login(body:dict,request:Request):
     value=hashlib.scrypt(password.encode(),salt=bytes.fromhex(user['salt']),n=16384,r=8,p=1).hex()
     if not secrets.compare_digest(value,user['password_hash']):raise HTTPException(401,'登录失败')
     token=jwt.encode({'sub':user['_id'],'role':user['role'],'projects':user['projects'],
-        'iat':now(),'exp':now()+timedelta(hours=8),'aud':'xfagent-v2'},secret(),algorithm='HS256')
+        'jti':uuid.uuid4().hex,'iat':now(),'exp':now()+timedelta(hours=8),'aud':'xfagent-v2'},secret(),algorithm='HS256')
     return {'access_token':token,'role':user['role'],'projects':user['projects']}
 
 @app.get('/api/health')
@@ -72,7 +72,9 @@ def prepare(body,who):
         if not im.startswith('data:image/'):raise ValueError('只接受上传图片')
         try:
             raw=base64.b64decode(im.split(',',1)[1],validate=True)
-            image=Image.open(io.BytesIO(raw));image.load()
+            image=Image.open(io.BytesIO(raw))
+            if len(raw)>10*1024*1024 or image.width*image.height>16000000 or image.format not in {'JPEG','PNG'}:raise ValueError('image limits')
+            image.load()
             image=image.convert('RGB');image.thumbnail((1600,1600));out=io.BytesIO();image.save(out,'JPEG',quality=92)
         except Exception as exc:raise ValueError('图片数据无效') from exc
         root=ROOT/'runtime/v2/uploads';root.mkdir(parents=True,exist_ok=True)

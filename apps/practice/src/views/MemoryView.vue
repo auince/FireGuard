@@ -134,7 +134,7 @@ onMounted(async () => {
         <section class="card">
           <h2 class="subheading">上下文使用范围</h2>
           <p class="muted">
-            会话工作记忆最多保留 24 小时，注入内容按 {{ data.context_budget_bytes }} 字节预算裁剪。上传新照片时，不继承旧照片或测量值。
+            会话工作记忆保留 {{ data.working_ttl_minutes || 30 }} 分钟，注入内容按 {{ data.context_budget_bytes }} 字节预算裁剪。上传新照片时，不继承旧照片或测量值。
           </p>
           <div class="actions">
             <router-link to="/sessions" class="btn btn-outline">查看我的会话</router-link>

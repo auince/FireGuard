@@ -27,7 +27,7 @@ def verify(store,state,conclusions=None):
         claim_ids.add(cid)
         if not c['text'].strip():errors.append({'code':'empty_claim_text','claim_id':cid})
         import re
-        if c['kind']!='legal_assessment' and re.search(r'违反|违法|不符合.{0,12}(规范|标准|规定|要求)|依法|法律规定|根据.{0,12}(消防法|条例)',c['text']):
+        if c['kind']!='legal_assessment' and re.search(r'违反|违法|不符合.{0,12}(规范|标准|规定|要求)|依法|法律规定|根据.{0,12}(消防法|条例)',(c['text']+'。'+c.get('recommendation',''))):
             errors.append({'code':'legal_claim_in_nonlegal_field','claim_id':cid})
         for oid in c['observation_ids']:
             if oid not in obs:errors.append({'code':'unknown_observation','claim_id':cid})
@@ -57,7 +57,7 @@ def verify(store,state,conclusions=None):
                 errors.append({'code':'uncertain_observation','claim_id':cid})
         requests.extend(c['missing_fields'])
     for c in output:
-        measurement_errors,missing=measurement_checks(c,req['scene'])
+        measurement_errors,missing=measurement_checks({**c,'text':c['text']+'。'+c.get('recommendation','')},req['scene'])
         errors.extend(measurement_errors);requests.extend(missing)
     if not output:errors.append({'code':'empty_report','claim_id':'none'})
     return {'passed':not errors,'errors':errors,'missing_fields':sorted(set(requests)),
