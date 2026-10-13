@@ -10,6 +10,7 @@ from xfagent.practice.app import create_app
 from xfagent.practice.contracts import Inspection
 from xfagent.practice.harness import Harness
 from xfagent.practice.vector import BasicVectorRAG, chunk
+from xfagent.practice.storage import Storage
 
 
 class RAG:
@@ -28,12 +29,16 @@ class Model:
                              'evidence_ids': ['e']}], 'missing_information': []}
 
 
-def test_question_photo_pipeline():
+def test_question_photo_pipeline(tmp_path):
     im = Image.new('RGB', (8, 8)); output = io.BytesIO(); im.save(output, 'PNG')
     photo = 'data:image/png;base64,' + base64.b64encode(output.getvalue()).decode()
-    response = TestClient(create_app(Harness(RAG(), Model()))).post('/api/inspect', json={'query': '检查消火栓', 'image': photo})
-    assert response.status_code == 200
-    report = response.json()
+    storage = Storage(tmp_path / 'db.sqlite');storage.add_user('i', 'fixture-password')
+    client = TestClient(create_app(Harness(RAG(), Model()), storage))
+    token = client.post('/api/login', json={'username': 'i', 'password': 'fixture-password'}).json()['token']
+    headers = {'Authorization': 'Bearer ' + token}
+    response = client.post('/api/inspect', json={'query': '检查消火栓', 'image': photo}, headers=headers)
+    assert response.status_code == 202
+    report = client.get('/api/reports/' + response.json()['id'], headers=headers).json()
     assert report['evidence'][0]['evidence_id'] == 'e'
     assert report['answer']['hazards'][0]['suggestion']
     assert report['verification']['passed']

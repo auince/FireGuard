@@ -4,6 +4,7 @@ import os
 from xfagent.v2.retrieval import Retrieval
 from xfagent.v2.store import Store
 from xfagent.v2.facts import fetch_evidence
+from xfagent.v2.facts import eligible
 
 
 class TrustedRAG:
@@ -27,3 +28,22 @@ class TrustedRAG:
             if not current or any(reported.get(k) != current.get(k) for k in fields):
                 errors.append('source_mismatch:' + reported['evidence_id'])
         return errors
+
+    def documents(self, as_of, jurisdiction):
+        sid = self.store.active_snapshot()
+        rows = self.store.db.documents.find({'snapshot_id': sid})
+        fields = ['doc_id', 'title', 'version_id', 'effective_from', 'effective_until',
+                  'jurisdiction', 'lifecycle', 'url', 'sha256']
+        return {'snapshot_id': sid, 'documents': [
+            {key: doc.get(key) for key in fields} for doc in rows if eligible(doc, as_of, jurisdiction)]}
+
+    def document(self, doc_id, as_of, jurisdiction):
+        from xfagent.v2.store import digest
+        sid = self.store.active_snapshot()
+        doc = self.store.db.documents.find_one({'snapshot_id': sid, 'doc_id': doc_id})
+        if not doc or not eligible(doc, as_of, jurisdiction):
+            return None
+        body = doc.get('full_text', '')
+        if not body or digest(body.encode()) != doc.get('body_hash'):
+            raise ValueError('法规原文完整性校验失败')
+        return {key: doc.get(key) for key in ['doc_id', 'title', 'version_id', 'full_text', 'url', 'effective_from']}

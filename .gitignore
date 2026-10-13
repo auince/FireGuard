@@ -37,3 +37,5 @@ htmlcov/
 /reports/*
 !/reports/feedback_sim_v1/
 /reports/feedback_sim_v1/debug.json
+
+/apps/practice/dist/
