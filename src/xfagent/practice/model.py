@@ -8,7 +8,7 @@ import requests
 class Model:
     name = os.getenv('XF_MODEL_NAME', 'xf-qwen3.5-9b')
 
-    def complete(self, role, payload, image=None):
+    def complete(self, role, payload, image=None, timeout=90):
         instructions = {
             'answer': '根据用户问题、照片和检索条款生成隐患说明和整改建议。只引用本次 evidence_id；照片无法证明压力、宽度等测量值。不能认定的列入 missing_information。返回 {"hazards":[{"description":"...","suggestion":"...","evidence_ids":["..."]}],"missing_information":[]}。',
             'intent': '识别当前设施。返回 {"facility":"indoor_hydrant|outdoor_hydrant|fire_extinguisher|unknown"}。新照片优先于旧会话。',
@@ -24,7 +24,7 @@ class Model:
                   'chat_template_kwargs': {'enable_thinking': False},
                   'response_format': {'type': 'json_object'},
                   'messages': [{'role': 'system', 'content': '你是消防巡检辅助模型。仅输出指定 JSON，不编造现场事实或条款。'},
-                               {'role': 'user', 'content': content}]}, timeout=(3, 90))
+                               {'role': 'user', 'content': content}]}, timeout=(3, min(90, timeout)))
         response.raise_for_status()
         text = response.json()['choices'][0]['message']['content']
         text = re.sub(r'<think>.*?</think>', '', text, flags=re.S).strip()

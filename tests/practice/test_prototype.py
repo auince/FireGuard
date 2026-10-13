@@ -20,7 +20,7 @@ class RAG:
 
 class Model:
     name = 'injected-fixture-not-9b-inference'
-    def complete(self, role, payload, image=None):
+    def complete(self, role, payload, image=None, **kwargs):
         if role == 'intent': return {'facility': 'indoor_hydrant'}
         if role == 'rewrite': return {'queries': ['室内消火栓遮挡']}
         if role == 'verify': return {'supported': True, 'issues': []}
@@ -42,8 +42,8 @@ def test_question_photo_pipeline():
 def test_forged_reference_fails():
     model = Model()
     original = model.complete
-    def forged(role, payload, image=None):
-        result = original(role, payload, image)
+    def forged(role, payload, image=None, **kwargs):
+        result = original(role, payload, image, **kwargs)
         if role == 'answer': result['hazards'][0]['evidence_ids'] = ['invented']
         return result
     model.complete = forged
