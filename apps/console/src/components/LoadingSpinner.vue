@@ -3,12 +3,12 @@ defineProps({
   size: {
     type: String,
     default: 'md',
-    validator: (v) => ['sm', 'md', 'lg'].includes(v)
+    validator: (v) => ['sm', 'md', 'lg'].includes(v),
   },
   text: {
     type: String,
-    default: ''
-  }
+    default: '',
+  },
 })
 </script>
 

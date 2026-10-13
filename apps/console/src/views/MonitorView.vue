@@ -17,11 +17,11 @@ const diagnostics = computed(() =>
     {
       verification: report.value?.verification,
       warnings: report.value?.warnings || [],
-      retrieval: report.value?.telemetry || {}
+      retrieval: report.value?.telemetry || {},
     },
     null,
-    2
-  )
+    2,
+  ),
 )
 
 async function poll(id, epoch) {

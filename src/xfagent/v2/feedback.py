@@ -36,7 +36,7 @@ def feedback_graph(store):
                 'run_id':source['_id'],'project_id':source['project_id'],'owner':source['owner'],
                 'query':source['input']['query'],'feedback':f['text'],'state':'pending','created_at':now()}},upsert=True)
             return {'candidate_id':None}
-        seed={'name':'反馈修复：'+category,'source_feedback_ids':[f['_id']],
+        seed={'name':'反馈修复：'+{'intent':'意图识别','retrieval':'条款检索','generation':'结论生成','applicability':'适用条件'}[category],'source_feedback_ids':[f['_id']],
               'trigger_terms':[], 'template':'standard'}
         if category in ['retrieval','intent']:
             obj=complete(s,'提出有限检索修复，输出 {"trigger_terms":["术语"],"expand_terms":["术语"],"parent_expand":true或false}，不得创造法规事实。',
@@ -59,9 +59,21 @@ def feedback_graph(store):
             'project_id':source['project_id'],'owner':f['owner'],'version':1,'created_at':now()}},upsert=True)
         return {'candidate_id':candidate,'calls':s.get('calls',0)}
     def persist(s):
-        store.db.feedback.update_one({'_id':s['feedback']['_id']},{'$set':{'category':s['category'],
-            'attribution':s['attribution'],'candidate_id':s.get('candidate_id'),'state':'attributed','attributed_at':now()}})
-        return {'result':{'category':s['category'],'candidate_id':s.get('candidate_id'),'state':'awaiting_regression_or_data'}}
+        f=s['feedback'];version=f.get('attribution_version',1)
+        selector={'_id':f['_id'],'attribution_version':version} if version>1 else {'_id':f['_id'],'$or':[{'attribution_version':1},{'attribution_version':{'$exists':False}}]}
+        def save(session):
+            from .graphs import require_lease
+            require_lease(store,s)
+            updated=store.db.feedback.update_one(selector,{'$set':{'category':s['category'],
+                'attribution':s['attribution'],'candidate_id':s.get('candidate_id'),'state':'attributed','attributed_at':now()}},session=session)
+            if not updated.matched_count:
+                if s.get('candidate_id'):
+                    store.db.policies.update_one({'_id':s['candidate_id'],'state':'draft'},
+                        {'$set':{'state':'deprecated','reason':'superseded_attribution'}},session=session)
+                return {'result':{'state':'superseded_attribution','category':s['category']}}
+            return {'result':{'category':s['category'],'candidate_id':s.get('candidate_id'),'state':'awaiting_regression_or_data'}}
+        with store.client.start_session() as session:
+            return session.with_transaction(save)
     g=StateGraph(LoopState)
     def bounded(name,fn):
         def run(s):
@@ -69,7 +81,10 @@ def feedback_graph(store):
             local=dict(s);local.setdefault('run_id','feedback:'+s['feedback']['_id']+':'+str(s['feedback'].get('attribution_version',1)))
             import time
             local['_node_start']=time.monotonic()
+            from .graphs import require_lease
+            require_lease(store,local)
             with node_scope(store,local,name):result=fn(local)
+            require_lease(store,local)
             result.update(calls=local.get('calls',0),usage=local.get('usage',{}),
                 active_seconds=local.get('active_seconds',0)+time.monotonic()-local['_node_start'])
             return result

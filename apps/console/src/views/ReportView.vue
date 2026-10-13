@@ -54,7 +54,7 @@ onBeforeUnmount(() => {
       <button class="btn btn-secondary btn-sm" @click="restart">重新加载</button>
     </p>
 
-    <ReportBody v-if="report" :report="report" />
+    <ReportBody v-if="report" :report="report" @updated="restart" />
     <p v-else-if="!error" class="empty">正在读取报告…</p>
 
     <section v-if="report" class="card trace-section">

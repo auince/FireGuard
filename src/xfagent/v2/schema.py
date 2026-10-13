@@ -38,6 +38,13 @@ class Review(Strict):
     comment: str = Field(default='',max_length=3000)
     conclusions: list[dict] | None = Field(default=None,max_length=20)
     confirmed_scene: dict = Field(default_factory=dict)
+    cleared_scene_fields: list[str] = Field(default_factory=list,max_length=30)
+
+    @model_validator(mode='after')
+    def distinct_scene_changes(self):
+        if set(self.cleared_scene_fields)&set(self.confirmed_scene):raise ValueError('现场条件不能同时确认和清除')
+        if any(len(k)>100 for k in self.cleared_scene_fields):raise ValueError('现场字段名称过长')
+        return self
 
     @field_validator('conclusions')
     @classmethod

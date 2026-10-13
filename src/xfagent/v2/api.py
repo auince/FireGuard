@@ -42,7 +42,7 @@ def login(body:dict,request:Request):
     # Rate limit login without making credentials available to graph/model nodes.
     import redis
     from .config import REDIS
-    r=redis.Redis.from_url(REDIS,socket_timeout=2);key='xfv2:login:'+digest([request.client.host,int(time.time()//60)])
+    r=redis.Redis.from_url(REDIS,socket_timeout=2);key='xfv2:login:'+digest([store.db.name,request.client.host,int(time.time()//60)])
     try:
         count=r.incr(key);r.expire(key,65)
         if count>10:raise HTTPException(429,'请稍后再试')
@@ -155,6 +155,7 @@ def review(identifier:str,body:Review,who:Actor=Depends(actor)):
     row=store.db.jobs.find_one({'_id':identifier});access(who,row,write=True)
     if body.action=='approve':
         state=row.get('result',{});req=dict(state.get('request',row['input']));req['scene']={**req.get('scene',{}),**body.confirmed_scene}
+        for key in body.cleared_scene_fields:req['scene'].pop(key,None)
         checked=verify(store,{**state,'request':req},body.conclusions if body.conclusions is not None else state.get('conclusions',[]))
         if not checked['passed']:raise HTTPException(409,{'message':'请先修改未通过的结论','verification':checked})
     revision=store.enqueue_resume(row,body.model_dump(),who)
@@ -191,13 +192,9 @@ def annotation_review(identifier:str,body:Review,who:Actor=Depends(actor)):
 @app.post('/api/feedback',status_code=202)
 def feedback(body:Feedback,who:Actor=Depends(actor),idempotency_key:str|None=Header(default=None)):
     row=store.db.jobs.find_one({'_id':body.run_id});access(who,row)
-    identifier=digest([who.user_id,idempotency_key or uuid.uuid4().hex])
-    value={**body.model_dump(),'owner':who.user_id,'project_id':row['project_id'],'state':'queued','created_at':now()}
-    existing=store.db.feedback.find_one({'_id':identifier})
-    if existing and any(existing.get(k)!=value[k] for k in body.model_dump()):raise HTTPException(409,'幂等键冲突')
-    store.db.feedback.update_one({'_id':identifier},{'$setOnInsert':value},upsert=True)
-    job=store.submit('feedback',{'feedback_id':identifier,'project_id':row['project_id']},who,'feedback:'+identifier)
-    return {'feedback_id':identifier,'id':job['_id']}
+    if row['kind'] not in ['inspection','retrieval','annotation']:raise ValueError('反馈必须绑定巡检任务')
+    from .feedback_service import submit_feedback
+    return submit_feedback(store,body,who,row,idempotency_key)
 
 @app.get('/api/feedback')
 def feedback_list(who:Actor=Depends(actor)):
@@ -279,7 +276,8 @@ def publish(identifier:str,body:dict,who:Actor=Depends(actor)):
 @app.post('/api/policies/{identifier}/rule-review')
 def rule_review(identifier:str,who:Actor=Depends(actor)):
     admin(who);p=store.db.policies.find_one({'_id':identifier});access(who,p)
-    store.db.policies.update_one({'_id':identifier},{'$set':{'rule_reviewed':True,'rule_reviewer':who.user_id}})
+    store.db.policies.update_one({'_id':identifier},{'$set':{'rule_reviewed':True,'rule_reviewer':who.user_id,'rule_review_hash':digest(p['spec'])}})
+    store.audit(identifier,'rule-review:'+digest(p['spec']),'rule_reviewed',actor=who.user_id,spec_hash=digest(p['spec']))
     return {'reviewed':True}
 
 @app.post('/api/policies/{identifier}/rollback')

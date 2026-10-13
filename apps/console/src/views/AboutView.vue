@@ -8,7 +8,7 @@ import {
   FireExtinguisher,
   ScanSearch,
   ShieldCheck,
-  Waves
+  Waves,
 } from 'lucide-vue-next'
 
 const capabilities = [
@@ -16,50 +16,50 @@ const capabilities = [
     name: '外观与标识',
     desc: '辅助核查可见标识、操作说明与铭牌，模糊内容需现场确认。',
     icon: ScanSearch,
-    tags: ['标识', '说明', '铭牌', '箱门']
+    tags: ['标识', '说明', '铭牌', '箱门'],
   },
   {
     name: '箱体结构',
     desc: '检查箱门、玻璃、锁具及箱体的完整性与可用状态。',
     icon: DoorOpen,
-    tags: ['破损', '锈蚀', '启闭', '遮挡']
+    tags: ['破损', '锈蚀', '启闭', '遮挡'],
   },
   {
     name: '内部组件',
     desc: '围绕水带、水枪、栓体、阀门等组件生成待核查建议。',
     icon: Boxes,
-    tags: ['在位', '连接', '完整', '状态']
+    tags: ['在位', '连接', '完整', '状态'],
   },
   {
     name: '软管卷盘',
     desc: '分析供水软管的卷绕、连接以及明显折弯与挤压情况。',
     icon: Waves,
-    tags: ['卷盘', '软管', '折弯', '连接']
+    tags: ['卷盘', '软管', '折弯', '连接'],
   },
   {
     name: '灭火器',
     desc: '检查灭火器组件有无、外观完整性和可见摆放异常。',
     icon: FireExtinguisher,
-    tags: ['有无', '外观', '附件', '摆放']
-  }
+    tags: ['有无', '外观', '附件', '摆放'],
+  },
 ]
 
 const foundations = [
   {
     name: 'Qwen3.5-9B 模型',
     desc: '结合问题、设施照片与条款原文，生成结构化巡检草稿。',
-    icon: BrainCircuit
+    icon: BrainCircuit,
   },
   {
     name: '可信法规检索',
     desc: '融合关键词与向量召回，回填原始条款并核验文档生效状态。',
-    icon: ScanSearch
+    icon: ScanSearch,
   },
   {
     name: '可信结果校验',
     desc: '固定五节点执行链路，验证通过后仍需人工审核，保留过程记录。',
-    icon: ShieldCheck
-  }
+    icon: ShieldCheck,
+  },
 ]
 
 // Note: Foundation descriptions reflect the design, not measured performance claims
@@ -73,7 +73,7 @@ const foundations = [
           class="about-hero__image"
           src="/images/about-inspection-hero.png"
           alt="巡检人员正在检查室内消火栓柜"
-        >
+        />
         <div class="about-hero__content">
           <span class="about-hero__mark">消防设施智能巡检</span>
           <h1>
@@ -95,10 +95,11 @@ const foundations = [
       <section class="about-intro">
         <p class="about-kicker">关于系统</p>
         <div class="about-intro__content">
-          <h2>让复杂的巡检判断，<br>变得清楚、稳定、可复核。</h2>
+          <h2>让复杂的巡检判断，<br />变得清楚、稳定、可复核。</h2>
           <div class="about-intro__copy">
             <p>
-              消防 Agent 以 Qwen3.5-9B 模型为核心，协同可信法规检索与专业校验机制，对消防设施进行识别、分析和记录。
+              消防 Agent 以 Qwen3.5-9B
+              模型为核心，协同可信法规检索与专业校验机制，对消防设施进行识别、分析和记录。
             </p>
             <p>
               系统保留问题、照片、条款引用和审核过程，形成完整的巡检记录链路。以下为核查方向，实际检测范围以现场照片质量和条款覆盖度为准。
@@ -263,7 +264,9 @@ const foundations = [
   color: #fff;
   font-weight: 700;
   text-decoration: none;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
 .about-hero__action:hover {
@@ -474,7 +477,9 @@ const foundations = [
   border: 1px solid #bd4c46;
   background: #fff;
   color: #a33f3a;
-  transition: background 0.2s ease, transform 0.2s ease;
+  transition:
+    background 0.2s ease,
+    transform 0.2s ease;
 }
 
 .about-cta__button:hover {

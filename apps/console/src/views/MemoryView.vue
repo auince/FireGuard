@@ -28,7 +28,7 @@ async function save() {
     await load()
     consent.value = false
     message.value = '回答偏好已保存，将用于下一轮生成。'
-  } catch(e) {
+  } catch (e) {
     error.value = e.message
   } finally {
     busy.value = false
@@ -44,11 +44,11 @@ async function forget() {
   error.value = ''
   message.value = ''
   try {
-    await request('/memory/preferences', {method: 'DELETE'})
+    await request('/memory/preferences', { method: 'DELETE' })
     await load()
     consent.value = false
     message.value = '已清除长期偏好，巡检记录继续保留。'
-  } catch(e) {
+  } catch (e) {
     error.value = e.message
   } finally {
     busy.value = false
@@ -58,7 +58,7 @@ async function forget() {
 onMounted(async () => {
   try {
     await load()
-  } catch(e) {
+  } catch (e) {
     error.value = e.message
   }
 })
@@ -79,9 +79,7 @@ onMounted(async () => {
 
     <div v-if="data" class="split">
       <section class="card">
-        <h2 class="subheading">
-          <Layers :size="20"/> 记忆与知识的边界
-        </h2>
+        <h2 class="subheading"><Layers :size="20" /> 记忆与知识的边界</h2>
         <article v-for="(layer, i) in data.layers" :key="layer.name" class="memory-layer">
           <span class="layer-number">0{{ i + 1 }}</span>
           <div>
@@ -89,16 +87,20 @@ onMounted(async () => {
             <p class="muted">{{ layer.description }}</p>
           </div>
         </article>
-        <p class="message">历史对话和个人偏好不会作为官方条款引用。每次生成都会重新检索有效法规。</p>
+        <p class="message">
+          历史对话和个人偏好不会作为官方条款引用。每次生成都会重新检索有效法规。
+        </p>
       </section>
 
       <div class="stack">
         <form class="card" @submit.prevent="save">
           <h2 class="subheading">回答偏好</h2>
           <p class="muted">
-            {{ data.preferences.answer_style
-              ? '当前已保存：' + (data.preferences.answer_style === 'concise' ? '简洁' : '详细')
-              : '尚未保存长期偏好。' }}
+            {{
+              data.preferences.answer_style
+                ? '当前已保存：' + (data.preferences.answer_style === 'concise' ? '简洁' : '详细')
+                : '尚未保存长期偏好。'
+            }}
           </p>
 
           <label class="field">
@@ -110,13 +112,13 @@ onMounted(async () => {
           </label>
 
           <label class="consent">
-            <input v-model="consent" type="checkbox" :disabled="busy">
+            <input v-model="consent" type="checkbox" :disabled="busy" />
             我同意保存此偏好，用于后续巡检回答。
           </label>
 
           <div class="actions">
             <button class="btn btn-primary" :disabled="busy || !consent">
-              <Check :size="16"/>
+              <Check :size="16" />
               {{ busy ? '保存中…' : '保存偏好' }}
             </button>
             <button
@@ -133,7 +135,8 @@ onMounted(async () => {
         <section class="card">
           <h2 class="subheading">上下文使用范围</h2>
           <p class="muted">
-            会话工作记忆保留 {{ data.working_ttl_minutes || 30 }} 分钟，注入内容按 {{ data.context_budget_bytes }} 字节预算裁剪。上传新照片时，不继承旧照片或测量值。
+            会话工作记忆保留 {{ data.working_ttl_minutes || 30 }} 分钟，注入内容按
+            {{ data.context_budget_bytes }} 字节预算裁剪。上传新照片时，不继承旧照片或测量值。
           </p>
           <div class="actions">
             <router-link to="/sessions" class="btn btn-outline">查看我的会话</router-link>
@@ -145,12 +148,47 @@ onMounted(async () => {
 </template>
 
 <style scoped>
-.memory-layer{display:flex;gap:18px;padding:22px 0;border-bottom:1px solid var(--color-gray-200)}
-.memory-layer:last-of-type{border-bottom:0}
-.memory-layer h3{font-size:16px;margin-bottom:6px}
-.layer-number{color:var(--color-primary);font-size:12px;font-weight:700;padding-top:4px;flex:0 0 auto}
-.consent{display:flex;gap:10px;align-items:start;font-size:13px;line-height:1.7;color:var(--text-secondary);margin:16px 0}
-.consent input{margin-top:5px;accent-color:var(--color-primary);cursor:pointer}
-.consent input:disabled{cursor:not-allowed;opacity:0.5}
-.subheading{display:flex;gap:8px;align-items:center}
+.memory-layer {
+  display: flex;
+  gap: 18px;
+  padding: 22px 0;
+  border-bottom: 1px solid var(--color-gray-200);
+}
+.memory-layer:last-of-type {
+  border-bottom: 0;
+}
+.memory-layer h3 {
+  font-size: 16px;
+  margin-bottom: 6px;
+}
+.layer-number {
+  color: var(--color-primary);
+  font-size: 12px;
+  font-weight: 700;
+  padding-top: 4px;
+  flex: 0 0 auto;
+}
+.consent {
+  display: flex;
+  gap: 10px;
+  align-items: start;
+  font-size: 13px;
+  line-height: 1.7;
+  color: var(--text-secondary);
+  margin: 16px 0;
+}
+.consent input {
+  margin-top: 5px;
+  accent-color: var(--color-primary);
+  cursor: pointer;
+}
+.consent input:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.subheading {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
 </style>

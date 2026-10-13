@@ -23,7 +23,7 @@ from xfagent.v2.store import Store, digest
 from xfagent.v2.memory import MemoryContextBuilder
 from xfagent.practice.rag import TrustedRAG
 
-COOKIE = 'xf_session'
+COOKIE = os.getenv('XF_COOKIE_NAME','xf_session')
 STATUS = {'awaiting_review': 'pending', 'awaiting_information': 'returned', 'complete': 'approved'}
 
 
@@ -32,7 +32,7 @@ def timestamp(value):
 
 
 def create_app(store=None):
-    core.store = store or Store()
+    core.store = store or Store(name=os.getenv('XF_V2_DB','xfagent_production'))
     storage = core.store
     rag = TrustedRAG(storage)
 
@@ -46,7 +46,7 @@ def create_app(store=None):
         storage.db.auth_sessions.create_index('expires_at', expireAfterSeconds=0)
         yield
 
-    app = FastAPI(title='消防巡检管理平台', version='8.0.0', lifespan=lifespan)
+    app = FastAPI(title='消防巡检管理平台', version='9.0.0', lifespan=lifespan)
     app.state.store = storage
     hosts = os.getenv('XF_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
@@ -129,7 +129,7 @@ def create_app(store=None):
 
     @app.get('/api/health')
     def health():
-        return {'stage': 8, 'model': MODEL, 'inference': os.getenv('XF_INFERENCE_MODE','external_service'), 'execution': 'durable_worker'}
+        return {'stage': 9, 'model': MODEL, 'inference': os.getenv('XF_INFERENCE_MODE','external_service'), 'execution': 'durable_worker'}
 
     @app.get('/health/live')
     def live():
@@ -293,11 +293,29 @@ def create_app(store=None):
                                                   'content.report_detail': {'$exists': True}})
         return {'deleted': result.deleted_count}
 
+    @app.get('/api/feedback')
+    def feedback(who: Actor = Depends(current)):
+        query={'project_id':{'$in':who.projects}}
+        if who.role=='inspector':query['owner']=who.user_id
+        result=[]
+        for row in storage.db.feedback.find(query).sort('created_at',-1).limit(100):
+            job=storage.db.jobs.find_one({'kind':'feedback','input.feedback_id':row['_id']},sort=[('created_at',-1)])
+            result.append(core.clean({**row,'job_id':job['_id'] if job else None,'job_status':job['status'] if job else 'unavailable',
+                'execution_error':job.get('error') if job else None}))
+        return result
+
+    @app.get('/api/improvement/backlog')
+    def backlog(who: Actor = Depends(current)):
+        query={'project_id':{'$in':who.projects}}
+        if who.role=='inspector':query['owner']=who.user_id
+        return {name:[core.clean(x) for x in storage.db[name].find(query).sort('created_at',-1).limit(100)]
+                for name in ['annotation_backlog','knowledge_gaps','knowledge_tickets']}
+
     # Reuse the durable platform routes, excluding superseded console contracts.
     excluded = {'/', '/api/auth/login', '/api/health', '/api/reports', '/api/reports/{identifier}/review', '/metrics', '/api/metrics'}
     platform = APIRouter()
     for route in core.app.routes:
-        if route.path.startswith('/api/') and route.path not in excluded:
+        if route.path.startswith('/api/') and route.path not in excluded and not (route.path=='/api/feedback' and 'GET' in route.methods):
             platform.routes.append(route)
 
     app.include_router(platform)

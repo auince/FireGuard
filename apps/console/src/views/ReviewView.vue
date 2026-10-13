@@ -29,7 +29,9 @@ async function choose(id) {
 async function refresh() {
   if (!allowed) return
   try {
-    rows.value = (await request('/reports')).reports.filter(r => ['pending', 'blocked', 'returned'].includes(r.status))
+    rows.value = (await request('/reports')).reports.filter((r) =>
+      ['pending', 'blocked', 'returned'].includes(r.status),
+    )
     error.value = ''
   } catch (e) {
     error.value = e.message
@@ -40,16 +42,33 @@ async function updated(report) {
   if (report) selected.value = report
   else if (selected.value) await choose(selected.value.id)
   await refresh()
-  if(report && ['queued','running'].includes(report.status)) poll(report.id)
+  if (report && ['queued', 'running'].includes(report.status)) poll(report.id)
 }
-function poll(id){clearTimeout(timer);timer=setTimeout(async()=>{if(selected.value?.id!==id)return;try{const r=await request('/reports/'+id);if(selected.value?.id!==id)return;selected.value=r;if(['queued','running'].includes(r.status))poll(id);else await refresh()}catch(e){error.value=e.message}},1500)}
+function poll(id) {
+  clearTimeout(timer)
+  timer = setTimeout(async () => {
+    if (selected.value?.id !== id) return
+    try {
+      const r = await request('/reports/' + id)
+      if (selected.value?.id !== id) return
+      selected.value = r
+      if (['queued', 'running'].includes(r.status)) poll(id)
+      else await refresh()
+    } catch (e) {
+      error.value = e.message
+    }
+  }, 1500)
+}
 
 onMounted(async () => {
   await refresh()
   if (allowed && route.query.report) await choose(route.query.report)
 })
 
-onBeforeUnmount(() => {generation++;clearTimeout(timer)})
+onBeforeUnmount(() => {
+  generation++
+  clearTimeout(timer)
+})
 </script>
 
 <template>
@@ -109,7 +128,9 @@ onBeforeUnmount(() => {generation++;clearTimeout(timer)})
   margin-top: 12px;
   padding: 17px;
   border: 1px solid var(--color-gray-200);
-  transition: border-color var(--transition-fast), background var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .review-item:hover {

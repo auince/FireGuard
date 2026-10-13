@@ -44,13 +44,19 @@ onMounted(refresh)
     <article v-for="row in rows" :key="row.id" class="list-card">
       <div>
         <h3>{{ row.query }}</h3>
-        <small>{{ new Date(row.created_at * 1000).toLocaleString('zh-CN') }} · v{{ row.revision }}</small>
+        <small
+          >{{ new Date(row.created_at * 1000).toLocaleString('zh-CN') }} · v{{
+            row.revision
+          }}</small
+        >
       </div>
       <div class="actions">
         <span class="pill" :class="row.status === 'approved' ? 'good' : 'warn'">
           {{ statusLabel(row.status) }}
         </span>
-        <router-link :to="'/reports/' + row.id" class="btn btn-secondary btn-sm">查看详情</router-link>
+        <router-link :to="'/reports/' + row.id" class="btn btn-secondary btn-sm"
+          >查看详情</router-link
+        >
       </div>
     </article>
   </div>

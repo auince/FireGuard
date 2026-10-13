@@ -9,7 +9,8 @@ def test_detector_validates_boxes_and_cases_never_become_facts():
             {'bboxNorm':[.9,.1,.2,.4],'confidence':.9}, {'bboxNorm':[0,0,1,1],'confidence':float('nan')}]}
         if url.endswith('/cases'):
             data=[{'id':'private','description':'other department','project_id':'other'},
-                  {'id':'case1','description':'历史描述','human_reviewed':True,'score':.2,'image':'/private/path'}]
+                  {'id':'unscoped','description':'must be excluded'},
+                  {'id':'case1','visibility':'shared','description':'历史描述','human_reviewed':True,'score':.2,'image':'/private/path'}]
         return SimpleNamespace(raise_for_status=lambda:None,json=lambda:data)
     result=VisionEvidence(post=post).analyze({'query':'消火栓','image':'photo','project_id':'p'},'indoor_hydrant')
     assert len(result['detector']['detections'])==1

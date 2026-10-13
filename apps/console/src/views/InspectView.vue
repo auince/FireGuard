@@ -22,7 +22,7 @@ const form = reactive({
   facility: 'auto',
   jurisdiction: '四川',
   as_of: localDate,
-  retrieval_mode: 'rrf'
+  retrieval_mode: 'rrf',
 })
 
 onMounted(async () => {
@@ -32,10 +32,13 @@ onMounted(async () => {
       original.value = r
       Object.assign(form, {
         query: r.query,
-        facility: r.facility in { auto: 1, indoor_hydrant: 1, outdoor_hydrant: 1, fire_extinguisher: 1 } ? r.facility : 'auto',
+        facility:
+          r.facility in { auto: 1, indoor_hydrant: 1, outdoor_hydrant: 1, fire_extinguisher: 1 }
+            ? r.facility
+            : 'auto',
         jurisdiction: r.jurisdiction,
         as_of: r.as_of,
-        retrieval_mode: r.retrieval_mode || 'rrf'
+        retrieval_mode: r.retrieval_mode || 'rrf',
       })
       image.value = r.image
       scene.value = r.scene || {}
@@ -60,12 +63,15 @@ async function submit() {
       image: image.value,
       scene: values,
       project_id: authState.user.project_id,
-      session_id: typeof route.query.session === 'string' ? route.query.session : null
+      session_id: typeof route.query.session === 'string' ? route.query.session : null,
     }
     if (!input.query) throw new Error('请填写巡检问题')
 
     const data = original.value
-      ? await post('/reports/' + original.value.id + '/revise', { expected_revision: original.value.revision, input })
+      ? await post('/reports/' + original.value.id + '/revise', {
+          expected_revision: original.value.revision,
+          input,
+        })
       : await post('/inspect', input)
 
     await router.push('/reports/' + data.id)
@@ -123,7 +129,7 @@ async function submit() {
         <div class="form-row">
           <label class="field">
             <span>核查日期</span>
-            <input v-model="form.as_of" class="input" type="date" required>
+            <input v-model="form.as_of" class="input" type="date" required />
           </label>
           <label class="field">
             <span>检索方式</span>
@@ -138,14 +144,22 @@ async function submit() {
 
         <details class="scene-details">
           <summary class="muted">补充已确认的现场条件</summary>
-          <SceneFields v-model="scene"/>
+          <SceneFields v-model="scene" />
         </details>
 
         <p v-if="error" class="message error" role="alert">{{ error }}</p>
 
         <div class="actions">
           <button class="btn btn-primary btn-lg" :disabled="busy || uploading">
-            {{ busy ? '正在提交' : uploading ? '正在处理照片' : original ? '补充并重新生成' : '生成核查草稿' }}
+            {{
+              busy
+                ? '正在提交'
+                : uploading
+                  ? '正在处理照片'
+                  : original
+                    ? '补充并重新生成'
+                    : '生成核查草稿'
+            }}
             <ArrowRight :size="17" />
           </button>
         </div>

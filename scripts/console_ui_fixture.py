@@ -16,6 +16,7 @@ os.environ['XF_V2_REDIS']='redis://127.0.0.1:6379/3'
 os.environ['XF_INFERENCE_MODE']='injected_fixture'
 os.environ['XF_MODEL_NAME']='injected-ui-fixture-not-real-9b'
 os.environ['XF_COOKIE_SECURE']='false'
+os.environ['XF_COOKIE_NAME']='xf_fixture_session'
 os.environ.setdefault('XF_V2_JWT_SECRET',secrets.token_hex(32))
 from xfagent.v2 import graphs
 from xfagent.v2 import feedback
@@ -43,6 +44,7 @@ def model(state,instruction,payload,image=None,role='answer'):
     if role=='vision':
         if 'corrections' in instruction:return {'corrections':[]}
         return {'observations':[{'status':'uncertain','description':'仿真观察：照片中目标周边空间需现场核实。','detector_id':'d1','labels':['待核实']}]}
+    if role=='adapt':return {'trigger_terms':['消火栓'],'expand_terms':['消火栓','取用空间'],'parent_expand':False}
     if role=='reflect':return {'category':'retrieval','expand_terms':['消火栓','取用空间'],'reason':'synthetic_fixture'}
     return {'conclusions':[{'claim_id':'c1','text':'仿真结论：请现场确认消火栓前是否存在遮挡。','recommendation':'核实后清理影响取用的物品。','kind':'information_request','observation_ids':[],'evidence_ids':[],'missing_fields':[]}]}
 def vision(self,request,facility,deadline=None):

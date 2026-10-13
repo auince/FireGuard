@@ -11,7 +11,7 @@ WORKDIR /app
 COPY requirements-v2.lock ./
 RUN pip install --no-cache-dir -r requirements-v2.lock && useradd --uid 10001 --create-home xfagent
 COPY src/ ./src/
-COPY scripts/service.py scripts/bootstrap_service.py ./scripts/
+COPY scripts/service.py scripts/bootstrap_service.py scripts/register_model_fingerprint.py ./scripts/
 COPY --from=console /build/dist ./apps/console/dist/
 RUN mkdir -p /app/runtime && chown -R xfagent:xfagent /app/runtime
 USER xfagent

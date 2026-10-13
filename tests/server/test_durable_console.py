@@ -116,3 +116,78 @@ def test_cancel_fences_running_worker(service):
     with pytest.raises(LeaseLost):require_lease(store,{'run_id':identifier,'execution_worker':'worker'})
     assert not store.finish(identifier,'worker',{'status':'complete'})
     assert client.get('/api/reports/'+identifier).json()['status']=='cancelled'
+
+
+def test_feedback_transaction_candidate_and_release_gate(service):
+    from xfagent.v2.feedback import feedback_graph
+    store,client=service
+    login(client,'inspector')
+    source=client.post('/api/inspect',json={'query':'结论表述不清','project_id':'default','use_model':False}).json()['id']
+    body={'run_id':source,'signal':'correction','text':'建议按风险、措施和依据组织结论','category':'generation'}
+    reply=client.post('/api/feedback',json=body,headers={'Idempotency-Key':'feedback-one'})
+    assert reply.status_code==202,reply.text
+    value=reply.json()
+    assert client.post('/api/feedback',json=body,headers={'Idempotency-Key':'feedback-one'}).json()==value
+    assert store.db.outbox.count_documents({'job_id':value['id']})==1
+    assert client.post('/api/feedback',json={**body,'text':'different'},headers={'Idempotency-Key':'feedback-one'}).status_code==400
+    execute(store,inspection_graph(store),store.claim(value['id'],'feedback-worker'),'feedback-worker')
+    row=client.get('/api/feedback').json()[0]
+    assert row['state']=='attributed' and row['job_status']=='complete'
+    candidate=store.db.policies.find_one({'_id':row['candidate_id']})
+    assert candidate['spec']['kind']=='hook' and candidate['state']=='draft'
+    assert client.post('/api/policies/'+candidate['_id']+'/publish',json={'percentage':5,'expected_revision':1}).status_code==403
+    # Reviewer correction creates a new attribution version; old draft cannot publish.
+    login(client,'reviewer')
+    correction=client.post('/api/feedback/'+row['id']+'/attribution',json={'category':'knowledge_gap','reason':'缺少制度资料','expected_version':1})
+    assert correction.status_code==202
+    execute(store,inspection_graph(store),store.claim(correction.json()['id'],'correct-worker'),'correct-worker')
+    assert store.db.policies.find_one({'_id':candidate['_id']})['state']=='deprecated'
+    assert store.db.knowledge_gaps.count_documents({'run_id':source})==1
+    assert client.get('/api/improvement/backlog').json()['knowledge_gaps']
+
+
+def test_late_feedback_worker_cannot_overwrite_new_attribution(service):
+    from xfagent.v2.feedback import feedback_graph
+    store,_=service
+    old={'_id':'feedback-stale','signal':'correction','owner':'inspector','text':'old','category':'generation','attribution_version':1}
+    store.db.feedback.insert_one({**old,'attribution_version':2,'category':'knowledge_gap','state':'queued'})
+    source={'_id':'source','project_id':'default','owner':'inspector','input':{'query':'q'},'result':{}}
+    result=feedback_graph(store).invoke({'feedback':old,'source':source})
+    assert result['result']['state']=='superseded_attribution'
+    assert store.db.feedback.find_one({'_id':old['_id']})['category']=='knowledge_gap'
+    assert store.db.policies.find_one({'_id':'feedback-'+old['_id']})['state']=='deprecated'
+
+
+def test_reviewer_can_revoke_previously_confirmed_scene(service):
+    from langgraph.types import Command
+    store,_=service
+    initial={'run_id':'clear-fact','owner':'inspector','snapshot_id':'kb-test','calls':0,'trace':[],'warnings':[],
+             'request':{'project_id':'default','session_id':'clear-fact','query':'检查消火栓','scene':{'measured_width':1.2},
+                        'facility':'indoor_hydrant','as_of':'2026-10-13','jurisdiction':'四川','mode':'inspection','use_model':False}}
+    config={'configurable':{'thread_id':'clear-fact'},'recursion_limit':70}
+    inspection_graph(store,governed=True).invoke(initial,config)
+    result=inspection_graph(store,governed=True).invoke(Command(resume={'action':'approve','reviewer':'reviewer',
+        'confirmed_scene':{},'cleared_scene_fields':['measured_width']}),config)
+    assert result['status']=='complete'
+    assert 'measured_width' not in result['request']['scene']
+
+
+def test_exhausted_inference_budget_does_not_block_human_rejection(service):
+    from langgraph.types import Command
+    store,_=service
+    state={'run_id':'exhausted-review','owner':'inspector','snapshot_id':'kb-test','calls':16,'active_seconds':301,'trace':[],'warnings':[],
+           'request':{'project_id':'default','session_id':'exhausted-review','query':'检查','scene':{},'facility':'indoor_hydrant',
+                      'as_of':'2026-10-13','jurisdiction':'四川','mode':'inspection','use_model':False}}
+    config={'configurable':{'thread_id':'exhausted-review'},'recursion_limit':70}
+    graph=inspection_graph(store,governed=True)
+    waiting=graph.invoke(state,config)
+    assert waiting['__interrupt__']
+    rejected=inspection_graph(store,governed=True).invoke(Command(resume={'action':'reject','reviewer':'reviewer'}),config)
+    assert rejected['status']=='complete' and rejected['report']['status']=='rejected'
+
+
+def test_login_throttle_is_enforced_within_the_business_database(service):
+    _,client=service
+    for _ in range(10):
+        assert client.post('/api/login',json={'username':'missing','password':'invalid'}).status_code==401
+    assert client.post('/api/login',json={'username':'missing','password':'invalid'}).status_code==429

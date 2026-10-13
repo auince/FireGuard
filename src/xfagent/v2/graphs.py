@@ -46,7 +46,7 @@ def safe_node(store,name,fn):
         s=copy.deepcopy(original);require_lease(store,s);t=time.monotonic();s['_node_start']=t
         initial_calls=s.get('calls',0);initial_warnings=len(s.get('warnings',[]));outcome='ok'
         try:
-            if s.get('active_seconds',0)>=300 and name not in ['review_ready','verify']:raise BudgetExhausted('active_time_limit')
+            if s.get('active_seconds',0)>=300 and name not in ['context','review_ready','verify','finalize']:raise BudgetExhausted('active_time_limit')
             with node_scope(store,s,name):
                 values=fn(s) or {}
         except LeaseLost:
@@ -231,7 +231,8 @@ def inspection_graph(store,checkpointer=True,governed=False):
                 'detector':s.get('detector',{}),'observations':s.get('observations',[]),'similar_cases':s.get('similar_cases',[]),'evidence':s.get('evidence',[]),'conclusions':s['conclusions'],
                 'verification':s['verification'],'warnings':s.get('warnings',[]),'professional_review':'pending'}
         if not s.get('forced_policy'):
-            memory.remember(s);policies.record(s)
+            memory.remember(s)
+            if s.get('policy'):policies.record(s)
         return {'report':report,'conclusions':s['conclusions'],'verification':s['verification'],'status':'awaiting_review'}
     def human(s):
         answer=interrupt({'run_id':s['run_id'],'report':s['report'],'allowed_actions':['approve','return','reject']})
@@ -239,6 +240,7 @@ def inspection_graph(store,checkpointer=True,governed=False):
     def finalize(s):
         action=s['review']['action'];report=copy.deepcopy(s['report']);r=copy.deepcopy(s['request'])
         r['scene'].update(s['review'].get('confirmed_scene',{}))
+        for key in s['review'].get('cleared_scene_fields',[]):r['scene'].pop(key,None)
         if action=='approve':
             claims=s['review']['conclusions'] if s['review'].get('conclusions') is not None else s['conclusions']
             s['request']=r
@@ -250,12 +252,13 @@ def inspection_graph(store,checkpointer=True,governed=False):
             if not result['passed']:
                 report.update(conclusions=claims,verification=result,status='draft')
                 return {'report':report,'verification':result,'status':'awaiting_review','request':r,'conclusions':claims}
+            if not s.get('forced_policy'):memory.remember({**s,'request':r,'conclusions':claims})
             report.update(conclusions=claims,verification=result,status='final',reviewer=s['review'].get('reviewer'),
                           review_comment=s['review'].get('comment',''),finalized_at=now().isoformat(),professional_review='human_reviewed_not_expert_certified')
             return {'report':report,'status':'complete','request':r,'conclusions':claims,'verification':result}
         if action=='reject':report['status']='rejected';return {'report':report,'status':'complete'}
         report['review_comment']=s['review'].get('comment','')
-        if s['review'].get('confirmed_scene'):
+        if s['review'].get('confirmed_scene') or s['review'].get('cleared_scene_fields'):
             return {'report':report,'request':r,'status':'redrafting','rewrites':0,'retrieval_rounds':0}
         return {'report':report,'request':r,'status':'awaiting_information','rewrites':0}
     if governed:

@@ -48,12 +48,26 @@ const currentYear = new Date().getFullYear()
 .footer__brand,
 .footer__brand > span:last-child,
 .footer__meta,
-.footer__status { display: flex; align-items: center; }
+.footer__status {
+  display: flex;
+  align-items: center;
+}
 
-.footer__brand { gap: 10px; }
-.footer__brand > span:last-child { align-items: flex-start; flex-direction: column; line-height: 1.35; }
-.footer__brand strong { font-size: var(--font-size-sm); }
-.footer__brand small { color: var(--text-tertiary); font-size: 11px; }
+.footer__brand {
+  gap: 10px;
+}
+.footer__brand > span:last-child {
+  align-items: flex-start;
+  flex-direction: column;
+  line-height: 1.35;
+}
+.footer__brand strong {
+  font-size: var(--font-size-sm);
+}
+.footer__brand small {
+  color: var(--text-tertiary);
+  font-size: 11px;
+}
 
 .footer__mark {
   width: 34px;
@@ -66,20 +80,49 @@ const currentYear = new Date().getFullYear()
   background: #fff8f7;
 }
 
-.footer__nav { display: flex; align-items: center; gap: 22px; }
-.footer__nav a { color: var(--text-secondary); font-size: 13px; font-weight: 600; }
-.footer__nav a:hover { color: var(--color-primary-dark); }
+.footer__nav {
+  display: flex;
+  align-items: center;
+  gap: 22px;
+}
+.footer__nav a {
+  color: var(--text-secondary);
+  font-size: 13px;
+  font-weight: 600;
+}
+.footer__nav a:hover {
+  color: var(--color-primary-dark);
+}
 
-.footer__meta { justify-content: flex-end; gap: 16px; color: var(--text-tertiary); font-size: 12px; }
-.footer__status { gap: 6px; color: var(--color-success); }
+.footer__meta {
+  justify-content: flex-end;
+  gap: 16px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+.footer__status {
+  gap: 6px;
+  color: var(--color-success);
+}
 
 @media (max-width: 820px) {
-  .footer__container { grid-template-columns: 1fr auto; padding-top: 18px; padding-bottom: 18px; }
-  .footer__nav { display: none; }
+  .footer__container {
+    grid-template-columns: 1fr auto;
+    padding-top: 18px;
+    padding-bottom: 18px;
+  }
+  .footer__nav {
+    display: none;
+  }
 }
 
 @media (max-width: 520px) {
-  .footer__container { grid-template-columns: 1fr; gap: 12px; }
-  .footer__meta { justify-content: flex-start; }
+  .footer__container {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .footer__meta {
+    justify-content: flex-start;
+  }
 }
 </style>

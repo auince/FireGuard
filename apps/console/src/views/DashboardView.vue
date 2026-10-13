@@ -1,7 +1,16 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRouter } from 'vue-router'
-import { ClipboardList, AlertTriangle, Clock, CheckCircle2, XCircle, FileText, Shield, TrendingUp } from 'lucide-vue-next'
+import {
+  ClipboardList,
+  AlertTriangle,
+  Clock,
+  CheckCircle2,
+  XCircle,
+  FileText,
+  Shield,
+  TrendingUp,
+} from 'lucide-vue-next'
 import { authState } from '@/stores/auth'
 import { request, statusLabel } from '@/api'
 
@@ -13,10 +22,10 @@ const error = ref('')
 const stats = computed(() => {
   if (!reports.value.length) return { pending: 0, running: 0, failed: 0, completed: 0 }
   return {
-    pending: reports.value.filter(r => ['pending','blocked'].includes(r.status)).length,
-    running: reports.value.filter(r => ['queued','running'].includes(r.status)).length,
-    failed: reports.value.filter(r => r.status === 'failed').length,
-    completed: reports.value.filter(r => ['approved','rejected'].includes(r.status)).length
+    pending: reports.value.filter((r) => ['pending', 'blocked'].includes(r.status)).length,
+    running: reports.value.filter((r) => ['queued', 'running'].includes(r.status)).length,
+    failed: reports.value.filter((r) => r.status === 'failed').length,
+    completed: reports.value.filter((r) => ['approved', 'rejected'].includes(r.status)).length,
   }
 })
 
@@ -40,7 +49,10 @@ onMounted(async () => {
       <header class="dashboard__header">
         <div>
           <h1>工作台</h1>
-          <p>{{ authState.user?.displayName || authState.user?.username }} · {{ { inspector: '巡检员', reviewer: '复核员', admin: '管理员' }[authState.user?.role] }}</p>
+          <p>
+            {{ authState.user?.displayName || authState.user?.username }} ·
+            {{ { inspector: '巡检员', reviewer: '复核员', admin: '管理员' }[authState.user?.role] }}
+          </p>
         </div>
         <router-link to="/inspect" class="btn btn-primary">
           <ClipboardList :size="18" />
@@ -57,7 +69,8 @@ onMounted(async () => {
       </section>
 
       <template v-else>
-        <p class="muted">统计范围：最近返回的 {{ reports.length }} 条巡检记录</p><div class="stats-grid">
+        <p class="muted">统计范围：最近返回的 {{ reports.length }} 条巡检记录</p>
+        <div class="stats-grid">
           <article class="stat-card stat-card--pending">
             <span class="stat-card__icon"><Clock :size="22" /></span>
             <div class="stat-card__content">
@@ -111,10 +124,7 @@ onMounted(async () => {
             >
               <div class="report-item__header">
                 <h3>{{ report.query || '消防设施巡检' }}</h3>
-                <span
-                  class="report-item__status"
-                  :class="`report-item__status--${report.status}`"
-                >
+                <span class="report-item__status" :class="`report-item__status--${report.status}`">
                   {{ statusLabel(report.status) }}
                 </span>
               </div>
@@ -134,7 +144,11 @@ onMounted(async () => {
               <ClipboardList :size="24" />
               <span>巡检提交</span>
             </router-link>
-            <router-link v-if="['reviewer','admin'].includes(authState.user?.role)" to="/review" class="action-card">
+            <router-link
+              v-if="['reviewer', 'admin'].includes(authState.user?.role)"
+              to="/review"
+              class="action-card"
+            >
               <Shield :size="24" />
               <span>人工审核</span>
             </router-link>
@@ -313,7 +327,9 @@ onMounted(async () => {
   border-radius: var(--radius-lg);
   background: #fff;
   cursor: pointer;
-  transition: border-color var(--transition-fast), box-shadow var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    box-shadow var(--transition-fast);
 }
 
 .report-item:hover {
@@ -390,7 +406,9 @@ onMounted(async () => {
   background: #fff;
   color: var(--text-primary);
   text-align: center;
-  transition: border-color var(--transition-fast), background var(--transition-fast);
+  transition:
+    border-color var(--transition-fast),
+    background var(--transition-fast);
 }
 
 .action-card:hover {
@@ -440,5 +458,20 @@ onMounted(async () => {
   .action-grid {
     grid-template-columns: repeat(2, 1fr);
   }
+}
+</style>
+
+<style scoped>
+.report-list {
+  min-width: 0;
+  grid-template-columns: minmax(0, 1fr);
+}
+.report-item {
+  display: block;
+  min-width: 0;
+}
+.report-item h3 {
+  min-width: 0;
+  flex: 1;
 }
 </style>

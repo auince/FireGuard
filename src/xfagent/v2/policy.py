@@ -60,12 +60,14 @@ class Policies:
         return identifier
 
     def publish(self,identifier,actor,percentage,expected_revision):
+        import os
+        if os.getenv('XF_INFERENCE_MODE')=='injected_fixture':raise ValueError('仿真环境禁止策略发布；请在真实推理环境完成回放')
         from .replay_protocol import PROTOCOL,execution_hash
         if percentage not in [5,20,50,100]:raise ValueError('invalid rollout percentage')
         p=self.store.db.policies.find_one({'_id':identifier})
         if not p or p['project_id'] not in actor.projects:raise ValueError('策略不存在')
         if p['state'] in ['rolled_back','deprecated']:raise ValueError('回滚版本必须创建新候选')
-        if p['spec']['kind']=='rule' and not p.get('rule_reviewed'):raise ValueError('Rule 需要管理员先审核内容')
+        if p['spec']['kind']=='rule' and (not p.get('rule_reviewed') or p.get('rule_review_hash')!=digest(p['spec'])):raise ValueError('Rule 需要管理员先审核内容')
         fingerprint=(self.store.db.settings.find_one({'_id':'generator_fingerprint'}) or {}).get('value')
         report=self.store.db.evaluations.find_one({'policy_id':identifier,'policy_hash':digest(p['spec']),'status':'passed',
             'protocol':PROTOCOL,'execution_hash':execution_hash(),'model_routes_hash':digest(manifest()),'model_fingerprint':fingerprint},sort=[('created_at',-1)])

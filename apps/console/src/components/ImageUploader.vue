@@ -1,15 +1,109 @@
 <script setup>
-import {ref,watch,onBeforeUnmount} from 'vue'
-import {fileToBase64} from '@/api'
-const props=defineProps({modelValue:{type:String,default:null}}),emit=defineEmits(['update:modelValue','processing'])
-const preview=ref(props.modelValue),fileInput=ref(null),isDragging=ref(false),error=ref(''),busy=ref(false);let generation=0
-watch(()=>props.modelValue,value=>preview.value=value)
-onBeforeUnmount(()=>generation++)
-async function processFile(file){if(!file)return;const current=++generation;busy.value=true;emit('processing',true);error.value='';emit('update:modelValue',null);preview.value=null;try{const data=await fileToBase64(file);if(current!==generation)return;preview.value=data;emit('update:modelValue',data)}catch(e){if(current===generation)error.value=e.message}finally{if(current===generation){busy.value=false;emit('processing',false)}}}
-function removeImage(){generation++;preview.value=null;busy.value=false;if(fileInput.value)fileInput.value.value='';emit('update:modelValue',null);emit('processing',false)}
-function handleDrop(e){e.preventDefault();isDragging.value=false;processFile(e.dataTransfer.files[0])}
+import { ref, watch, onBeforeUnmount } from 'vue'
+import { fileToBase64 } from '@/api'
+const props = defineProps({ modelValue: { type: String, default: null } }),
+  emit = defineEmits(['update:modelValue', 'processing'])
+const preview = ref(props.modelValue),
+  fileInput = ref(null),
+  isDragging = ref(false),
+  error = ref(''),
+  busy = ref(false)
+let generation = 0
+watch(
+  () => props.modelValue,
+  (value) => (preview.value = value),
+)
+onBeforeUnmount(() => generation++)
+async function processFile(file) {
+  if (!file) return
+  const current = ++generation
+  busy.value = true
+  emit('processing', true)
+  error.value = ''
+  emit('update:modelValue', null)
+  preview.value = null
+  try {
+    const data = await fileToBase64(file)
+    if (current !== generation) return
+    preview.value = data
+    emit('update:modelValue', data)
+  } catch (e) {
+    if (current === generation) error.value = e.message
+  } finally {
+    if (current === generation) {
+      busy.value = false
+      emit('processing', false)
+    }
+  }
+}
+function removeImage() {
+  generation++
+  preview.value = null
+  busy.value = false
+  if (fileInput.value) fileInput.value.value = ''
+  emit('update:modelValue', null)
+  emit('processing', false)
+}
+function handleDrop(e) {
+  e.preventDefault()
+  isDragging.value = false
+  processFile(e.dataTransfer.files[0])
+}
 </script>
-<template><div class="uploader"><input ref="fileInput" type="file" accept="image/jpeg,image/png" class="uploader__input" aria-label="选择设施照片" @change="processFile($event.target.files[0])"><div v-if="preview" class="uploader__preview"><img :src="preview" alt="本次上传的设施照片" class="uploader__image"><button class="uploader__remove" type="button" aria-label="移除照片" @click="removeImage">×</button></div><button v-else type="button" class="uploader__dropzone" :class="{'uploader__dropzone--active':isDragging}" :disabled="busy" @click="fileInput?.click()" @dragover.prevent="isDragging=true" @dragleave="isDragging=false" @drop="handleDrop"><div class="uploader__icon"><svg viewBox="0 0 24 24" fill="none"><path d="M4 16l5-5 7 7m-2-2 3-3 3 3" stroke="currentColor" stroke-width="1.5"/><rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" stroke-width="1.5"/></svg></div><p class="uploader__text"><span class="uploader__text-primary">{{busy?'正在处理照片':'点击上传'}}</span><span v-if="!busy" class="uploader__text-secondary">或拖放图片到此处</span></p><p class="uploader__hint">JPEG / PNG · ≤10MiB · ≤1600万像素</p></button><p v-if="error" class="message error" role="alert">{{error}}</p></div></template>
+<template>
+  <div class="uploader">
+    <input
+      ref="fileInput"
+      type="file"
+      accept="image/jpeg,image/png"
+      class="uploader__input"
+      aria-label="选择设施照片"
+      @change="processFile($event.target.files[0])"
+    />
+    <div v-if="preview" class="uploader__preview">
+      <img :src="preview" alt="本次上传的设施照片" class="uploader__image" /><button
+        class="uploader__remove"
+        type="button"
+        aria-label="移除照片"
+        @click="removeImage"
+      >
+        ×
+      </button>
+    </div>
+    <button
+      v-else
+      type="button"
+      class="uploader__dropzone"
+      :class="{ 'uploader__dropzone--active': isDragging }"
+      :disabled="busy"
+      @click="fileInput?.click()"
+      @dragover.prevent="isDragging = true"
+      @dragleave="isDragging = false"
+      @drop="handleDrop"
+    >
+      <div class="uploader__icon">
+        <svg viewBox="0 0 24 24" fill="none">
+          <path d="M4 16l5-5 7 7m-2-2 3-3 3 3" stroke="currentColor" stroke-width="1.5" />
+          <rect
+            x="3"
+            y="4"
+            width="18"
+            height="16"
+            rx="2"
+            stroke="currentColor"
+            stroke-width="1.5"
+          />
+        </svg>
+      </div>
+      <p class="uploader__text">
+        <span class="uploader__text-primary">{{ busy ? '正在处理照片' : '点击上传' }}</span
+        ><span v-if="!busy" class="uploader__text-secondary">或拖放图片到此处</span>
+      </p>
+      <p class="uploader__hint">JPEG / PNG · ≤10MiB · ≤1600万像素</p>
+    </button>
+    <p v-if="error" class="message error" role="alert">{{ error }}</p>
+  </div>
+</template>
 
 <style scoped>
 .uploader {

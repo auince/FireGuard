@@ -10,7 +10,7 @@ jobs:
           node-version: '22'
           cache: npm
           cache-dependency-path: apps/console/package-lock.json
-      - run: npm ci && npm run build
+      - run: npm ci && npm run format:check && npm run build
         working-directory: apps/console
   durable-contracts:
     runs-on: ubuntu-latest

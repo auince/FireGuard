@@ -45,7 +45,9 @@ async function open(doc) {
   hits.value = null
   current.value = null
   try {
-    const data = await request('/knowledge/documents/' + encodeURIComponent(doc.doc_id) + '?' + parameters())
+    const data = await request(
+      '/knowledge/documents/' + encodeURIComponent(doc.doc_id) + '?' + parameters(),
+    )
     if (epoch === selection) current.value = data
   } catch (e) {
     if (epoch === selection) error.value = e.message
@@ -59,7 +61,9 @@ async function search() {
   current.value = null
   error.value = ''
   try {
-    const result = await request('/knowledge/search?' + parameters() + '&q=' + encodeURIComponent(query.value.trim()))
+    const result = await request(
+      '/knowledge/search?' + parameters() + '&q=' + encodeURIComponent(query.value.trim()),
+    )
     if (epoch === selection) hits.value = result.evidence
   } catch (e) {
     if (epoch === selection) error.value = e.message
@@ -85,7 +89,7 @@ onMounted(catalog)
       <div class="form-row">
         <label class="field">
           <span>核查日期</span>
-          <input v-model="date" type="date" class="input" @change="catalog">
+          <input v-model="date" type="date" class="input" @change="catalog" />
         </label>
         <label class="field">
           <span>地域</span>
@@ -103,7 +107,7 @@ onMounted(catalog)
           aria-label="检索法规条款"
           placeholder="输入条款关键词，例如：消火栓 遮挡"
           maxlength="1000"
-        >
+        />
         <button class="btn btn-primary" :disabled="busy || !query.trim()">检索条款</button>
       </form>
 

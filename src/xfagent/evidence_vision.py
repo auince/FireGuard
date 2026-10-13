@@ -49,9 +49,11 @@ class VisionEvidence:
         elif image:
             result['detector']['status'] = 'unsupported_facility'
         try:
-            rows = self.call('/cases', {'query': request['query'], 'kind': 'text'}, deadline, 10)
+            rows = self.call('/cases', {'query': request['query'], 'kind': 'text','project_id':request.get('project_id')}, deadline, 10)
             for case in rows[:10]:
-                if case.get('project_id') not in {None, request.get('project_id')}:
+                project=case.get('project_id')
+                shared=case.get('visibility')=='shared' or os.getenv('XF_CASES_SHARED','false').lower()=='true'
+                if (project is not None and project!=request.get('project_id')) or (project is None and not shared):
                     continue
                 score = float(case.get('score', 0))
                 if not math.isfinite(score):

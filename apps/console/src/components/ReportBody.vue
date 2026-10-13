@@ -7,7 +7,7 @@ import VisualEvidence from './VisualEvidence.vue'
 
 const props = defineProps({
   report: { type: Object, required: true },
-  review: { type: Boolean, default: false }
+  review: { type: Boolean, default: false },
 })
 const emit = defineEmits(['updated'])
 
@@ -16,27 +16,34 @@ const comment = ref('')
 const error = ref('')
 const currentReportId = ref(null)
 
-const canReview = computed(() =>
-  props.review &&
-  ['reviewer', 'admin'].includes(authState.user?.role) &&
-  ['pending', 'blocked', 'returned'].includes(props.report.status)
+const canReview = computed(
+  () =>
+    props.review &&
+    ['reviewer', 'admin'].includes(authState.user?.role) &&
+    ['pending', 'blocked', 'returned'].includes(props.report.status),
 )
 
-const canRevise = computed(() =>
-  !props.report.durable_status && ['returned', 'blocked', 'failed'].includes(props.report.status) &&
-  (props.report.owner === authState.user?.username || authState.user?.role === 'admin')
+const canRevise = computed(
+  () =>
+    !props.report.durable_status &&
+    ['returned', 'blocked', 'failed'].includes(props.report.status) &&
+    (props.report.owner === authState.user?.username || authState.user?.role === 'admin'),
 )
 
-const numbering = computed(() =>
-  new Map((props.report.evidence || []).map((e, i) => [e.evidence_id, i + 1]))
+const numbering = computed(
+  () => new Map((props.report.evidence || []).map((e, i) => [e.evidence_id, i + 1])),
 )
 
 // Clear comment when switching between reports in review mode
-watch(() => props.report.id, (newId) => {
-  currentReportId.value = newId
-  comment.value = ''
-  error.value = ''
-}, { immediate: true })
+watch(
+  () => props.report.id,
+  (newId) => {
+    currentReportId.value = newId
+    comment.value = ''
+    error.value = ''
+  },
+  { immediate: true },
+)
 
 async function act(action) {
   if (busy.value || currentReportId.value !== props.report.id) return
@@ -48,7 +55,7 @@ async function act(action) {
     const result = await post('/reports/' + reportId + '/review', {
       expected_revision: revision,
       action,
-      comment: comment.value
+      comment: comment.value,
     })
     if (currentReportId.value === reportId) {
       comment.value = ''
@@ -64,21 +71,34 @@ async function act(action) {
   }
 }
 
-async function cancelRun(){if(!window.confirm('取消此任务？当前生成将停止，已有记录保留。'))return;try{await post('/jobs/'+props.report.id+'/cancel',{expected_revision:props.report.revision});emit('updated',null)}catch(e){error.value=e.message}}
+async function cancelRun() {
+  if (!window.confirm('取消此任务？当前生成将停止，已有记录保留。')) return
+  try {
+    await post('/jobs/' + props.report.id + '/cancel', { expected_revision: props.report.revision })
+    emit('updated', null)
+  } catch (e) {
+    error.value = e.message
+  }
+}
 function expand(id) {
   const details = document.getElementById(id)
-  if (details) { details.open = true; details.scrollIntoView({block: 'center', behavior: 'smooth'}) }
+  if (details) {
+    details.open = true
+    details.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }
 }
 </script>
 
 <template>
   <div class="stack">
-    <VisualEvidence :report="report"/>
     <section class="card">
       <div class="page-heading">
         <div>
           <h2>{{ report.query }}</h2>
-          <p class="report-meta">{{ report.id.slice(0, 12) }} · v{{ report.revision }} · {{ new Date(report.created_at * 1000).toLocaleString('zh-CN') }}</p>
+          <p class="report-meta">
+            {{ report.id.slice(0, 12) }} · v{{ report.revision }} ·
+            {{ new Date(report.created_at * 1000).toLocaleString('zh-CN') }}
+          </p>
         </div>
         <span class="pill" :class="report.status === 'approved' ? 'good' : 'warn'">
           {{ statusLabel(report.status) }}
@@ -86,7 +106,7 @@ function expand(id) {
       </div>
 
       <p v-if="report.model?.includes('fixture')" class="message">
-        仿真演示：本报告的模型响应为测试注入数据。
+        测试环境：本报告的模型响应为仿真数据。
       </p>
 
       <p v-if="report.error" class="message error" role="alert">{{ report.error }}</p>
@@ -96,41 +116,81 @@ function expand(id) {
       </p>
 
       <p v-else class="message" :class="report.verification?.passed ? 'success' : 'error'">
-        {{ report.verification?.passed
-          ? '验证通过。' + (report.status === 'approved' ? '已由复核员确认定稿。' : report.status === 'pending' ? '等待人工确认。' : '审核状态：' + statusLabel(report.status))
-          : '验证未通过，请核查条款或补充现场信息。' }}
+        {{
+          report.verification?.passed
+            ? '验证通过。' +
+              (report.status === 'approved'
+                ? '已由复核员确认定稿。'
+                : report.status === 'pending'
+                  ? '等待人工确认。'
+                  : '审核状态：' + statusLabel(report.status))
+            : '验证未通过，请核查条款或补充现场信息。'
+        }}
         <span v-if="report.verification?.errors?.length">
-          {{ report.verification.errors.map(v => typeof v === 'string' ? v : v.code).join('；') }}
+          {{
+            report.verification.errors.map((v) => (typeof v === 'string' ? v : v.code)).join('；')
+          }}
         </span>
       </p>
 
       <article v-if="report.conclusions?.length" class="conclusions-section">
-        <h3 class="section-title">审核结论</h3>
-        <div v-for="(claim, i) in report.conclusions" :key="claim.claim_id" class="conclusion-block">
+        <h3 class="section-title">核查结论</h3>
+        <div
+          v-for="(claim, i) in report.conclusions"
+          :key="claim.claim_id"
+          class="conclusion-block"
+        >
           <div class="conclusion-header">
             <strong>{{ i + 1 }}. {{ claim.text }}</strong>
             <div class="conclusion-badges">
-              <span class="badge" :class="claim.kind">{{ {observation:'现场观察',information_request:'待核实',legal_assessment:'法规判断'}[claim.kind] }}</span>
-              <span v-if="claim.applicability==='supported'" class="badge good">适用</span>
-              <span v-if="claim.applicability==='not_applicable'" class="badge muted">不适用</span>
-              <span v-if="claim.sufficiency==='sufficient'" class="badge good">材料充分</span>
-              <span v-if="claim.sufficiency==='insufficient'" class="badge warn">材料不足</span>
+              <span class="badge" :class="claim.kind">{{
+                {
+                  observation: '现场观察',
+                  information_request: '待核实',
+                  legal_assessment: '法规判断',
+                }[claim.kind]
+              }}</span>
+              <span v-if="claim.applicability === 'supported'" class="badge good">适用</span>
+              <span v-if="claim.applicability === 'not_applicable'" class="badge muted"
+                >不适用</span
+              >
+              <span v-if="claim.sufficiency === 'sufficient'" class="badge good">材料充分</span>
+              <span v-if="claim.sufficiency === 'insufficient'" class="badge warn">材料不足</span>
             </div>
           </div>
-          <p v-if="claim.recommendation" class="recommendation">整改建议：{{ claim.recommendation }}</p>
+          <p v-if="claim.recommendation" class="recommendation">
+            整改建议：{{ claim.recommendation }}
+          </p>
           <div v-if="claim.missing_fields?.length" class="missing-fields">
             <strong>待补充条件：</strong>{{ claim.missing_fields.join('、') }}
           </div>
-          <div v-if="claim.observation_ids?.length||claim.evidence_ids?.length" class="claim-references">
-            <span v-if="claim.observation_ids?.length" class="ref-group">关联观察 {{ claim.observation_ids.length }} 项</span>
-            <span v-if="claim.evidence_ids?.length" class="ref-group">关联依据
-              <a v-for="eid in claim.evidence_ids" :key="eid" :href="'#ev-'+report.id+'-'+numbering.get(eid)" class="citation" @click.prevent="expand('ev-'+report.id+'-'+numbering.get(eid))">[{{ numbering.get(eid) }}]</a>
+          <div
+            v-if="claim.observation_ids?.length || claim.evidence_ids?.length"
+            class="claim-references"
+          >
+            <span v-if="claim.observation_ids?.length" class="ref-group"
+              >关联观察 {{ claim.observation_ids.length }} 项</span
+            >
+            <span v-if="claim.evidence_ids?.length" class="ref-group"
+              >关联依据
+              <a
+                v-for="eid in claim.evidence_ids"
+                :key="eid"
+                :href="'#ev-' + report.id + '-' + numbering.get(eid)"
+                class="citation"
+                @click.prevent="expand('ev-' + report.id + '-' + numbering.get(eid))"
+                >[{{ numbering.get(eid) }}]</a
+              >
             </span>
           </div>
         </div>
       </article>
 
-      <article v-for="(hazard, i) in (report.conclusions ? [] : report.answer?.hazards || [])" :key="i" class="report-block">
+      <article
+        v-for="(hazard, i) in report.conclusions ? [] : report.answer?.hazards || []"
+        :key="i"
+        class="report-block"
+      >
         <h3>{{ i + 1 }}. {{ hazard.description }}</h3>
         <p v-if="hazard.suggestion">整改建议：{{ hazard.suggestion }}</p>
         <div class="citations">
@@ -151,20 +211,50 @@ function expand(id) {
         <p v-for="text in report.answer.missing_information" :key="text">• {{ text }}</p>
       </div>
 
-      <p v-if="error" class="message error">{{error}}</p><div class="actions">
-        <button v-if="report.durable_status && ['queued','running'].includes(report.status)" class="btn btn-outline" @click="cancelRun">取消任务</button>
-        <button v-if="report.durable_status === 'failed'" class="btn btn-secondary" @click="post('/jobs/'+report.id+'/resume',{}).then(()=>emit('updated',null)).catch(e=>error=e.message)">从检查点恢复</button>
+      <p v-if="error" class="message error">{{ error }}</p>
+      <div class="actions">
+        <router-link
+          v-if="report.durable_status"
+          :to="{ path: '/feedback', query: { run: report.id } }"
+          class="btn btn-secondary"
+          >反馈问题</router-link
+        >
+        <button
+          v-if="report.durable_status && ['queued', 'running'].includes(report.status)"
+          class="btn btn-outline"
+          @click="cancelRun"
+        >
+          取消任务
+        </button>
+        <button
+          v-if="report.durable_status === 'failed'"
+          class="btn btn-secondary"
+          @click="
+            post('/jobs/' + report.id + '/resume', {})
+              .then(() => emit('updated', null))
+              .catch((e) => (error = e.message))
+          "
+        >
+          从检查点恢复
+        </button>
         <router-link
           v-if="report.owner === authState.user?.username && report.session_id"
-          :to="{path:'/sessions',query:{id:report.session_id}}"
+          :to="{ path: '/sessions', query: { id: report.session_id } }"
           class="btn btn-primary"
         >
           继续本次会话
         </router-link>
-        <router-link v-if="canRevise" :to="{ path: '/inspect', query: { revise: report.id } }" class="btn btn-primary">
+        <router-link
+          v-if="canRevise"
+          :to="{ path: '/inspect', query: { revise: report.id } }"
+          class="btn btn-primary"
+        >
           补充并重新生成
         </router-link>
-        <router-link :to="{ path: '/monitor', query: { run: report.id } }" class="btn btn-secondary">
+        <router-link
+          :to="{ path: '/monitor', query: { run: report.id } }"
+          class="btn btn-secondary"
+        >
           查看执行链路
         </router-link>
         <router-link
@@ -177,6 +267,7 @@ function expand(id) {
       </div>
     </section>
 
+    <VisualEvidence :report="report" />
     <section class="card">
       <h2 class="subheading">
         法规条款依据
@@ -203,7 +294,11 @@ function expand(id) {
       </details>
     </section>
 
-    <ReviewEditor v-if="canReview && report.conclusions" :report="report" @updated="emit('updated', $event)"/>
+    <ReviewEditor
+      v-if="canReview && report.conclusions"
+      :report="report"
+      @updated="emit('updated', $event)"
+    />
     <section v-if="canReview && !report.conclusions" class="card review-section">
       <h2 class="subheading">人工审核</h2>
       <p class="muted">批准前重新核验条款和结论。证据不足时，请退回补充。</p>
@@ -235,7 +330,8 @@ function expand(id) {
       <h2 class="subheading">审核记录</h2>
       <div v-for="(entry, i) in report.reviews" :key="i" class="audit-line">
         <strong>
-          {{ entry.reviewer }} · {{ { approve: '批准定稿', return: '退回补充', reject: '驳回' }[entry.action] }}
+          {{ entry.reviewer }} ·
+          {{ { approve: '批准定稿', return: '退回补充', reject: '驳回' }[entry.action] }}
         </strong>
         <p>{{ entry.comment || '未填写意见' }}</p>
         <small class="muted">{{ new Date(entry.at * 1000).toLocaleString('zh-CN') }}</small>
