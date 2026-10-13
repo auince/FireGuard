@@ -1,0 +1,20 @@
+proxy:
+  port: 19530
+  internalPort: 19529
+  ip: 127.0.0.1
+common:
+  storageType: local
+  security:
+    authorizationEnabled: false
+localStorage:
+  path: /var/lib/milvus/data
+etcd:
+  endpoints: 127.0.0.1:2379
+  use:
+    embed: true
+  data:
+    dir: /var/lib/milvus/etcd
+  config:
+    path: /milvus/configs/embedEtcd.yaml
+metrics:
+  port: 9091

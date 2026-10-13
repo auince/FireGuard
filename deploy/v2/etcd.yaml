@@ -1,0 +1,8 @@
+listen-client-urls: http://127.0.0.1:2379
+advertise-client-urls: http://127.0.0.1:2379
+listen-peer-urls: http://127.0.0.1:2380
+initial-advertise-peer-urls: http://127.0.0.1:2380
+initial-cluster: default=http://127.0.0.1:2380
+quota-backend-bytes: 4294967296
+auto-compaction-mode: revision
+auto-compaction-retention: '1000'

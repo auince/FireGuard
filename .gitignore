@@ -1,0 +1,39 @@
+.venv/
+.env
+__pycache__/
+.pytest_cache/
+*.egg-info/
+runtime/
+data/
+assets/
+apps/web/dist/
+node_modules/
+.venv-*/
+*.log
+
+reports/v2/review-workbook/images/
+
+# Local credentials and machine-specific settings
+.env.*
+!.env.example
+*.env
+!*.env.example
+**/.git/
+.DS_Store
+
+# Training runs, model artifacts and local caches
+wandb/
+checkpoints/
+*.wandb
+*.safetensors
+*.pt
+*.pth
+*.npy
+*.npz
+.coverage
+htmlcov/
+
+# Generated reports remain on disk; keep the small feedback simulation evidence
+/reports/*
+!/reports/feedback_sim_v1/
+/reports/feedback_sim_v1/debug.json

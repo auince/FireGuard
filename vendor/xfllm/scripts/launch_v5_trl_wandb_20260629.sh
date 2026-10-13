@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+set -euo pipefail
+export PATH=/opt/conda/bin:$PATH
+export RUN_NAME=qwen3vl8b_hydrant_v5_full_pos_balanced_3to1_trl_wandb_sft_lora_20260629
+export DATA_DIR=/opt/datasets/fire-inspection/training_data/20260629_hydrant_auto_visible_reasoning_v5_full_train_pos_balanced_3to1
+export OUTPUT_DIR=/opt/xfagent/artifacts/trl/$RUN_NAME
+export CUDA_VISIBLE_DEVICES=1
+export NPROC_PER_NODE=1
+export MAX_STEPS=600
+export SAVE_STEPS=50
+export EVAL_STEPS=50
+export SAVE_TOTAL_LIMIT=8
+export REPORT_TO=wandb
+export WANDB_PROJECT=qwen3vl_hydrant_sft
+export WANDB_MODE=online
+export WANDB_TAGS=qwen3vl8b,hydrant,v5_full,pos_balanced_3to1,trl,wandb,sft,lora,20260629
+export DO_EVAL=0
+export CONDA_ENV=swift_clj
+export MAX_IMAGE_PIXELS=65536
+export GRADIENT_ACCUMULATION_STEPS=4
+export TRL_SFT_SCRIPT=/opt/datasets/fire-inspection/scripts/train_trl_qwen3vl_sft_swift_compat_20260629.py
+cd /opt/datasets/fire-inspection/scripts
+bash /opt/datasets/fire-inspection/scripts/run_qwen3vl8b_internal_sft.sh

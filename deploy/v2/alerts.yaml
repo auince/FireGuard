@@ -1,0 +1,13 @@
+groups:
+  - name: xfagent-engineering
+    rules:
+      - alert: XFAgentQueueStalled
+        expr: xfagent_queue_oldest_seconds > 300
+        for: 2m
+        labels: {severity: warning}
+        annotations: {summary: '巡检任务排队超过5分钟，请检查Worker与模型服务'}
+      - alert: XFAgentAPIUnavailable
+        expr: up{job="xfagent-v2"} == 0
+        for: 1m
+        labels: {severity: warning}
+        annotations: {summary: '消防工作台监控端点无法访问'}

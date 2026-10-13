@@ -1,0 +1,5 @@
+**
+!requirements-v2.lock
+!deploy/
+!deploy/v2/
+!deploy/v2/Dockerfile

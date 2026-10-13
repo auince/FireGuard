@@ -1,0 +1,8 @@
+# Optional CPU OCR; install in an isolated environment or --target, not the serving environment.
+rapidocr-onnxruntime==1.4.4
+onnxruntime>=1.17,<2
+pyclipper==1.4.0
+shapely==2.1.2
+Pillow>=10
+# System dependency: Poppler pdftoppm / pdftotext.
+# Astra annotation client uses Python stdlib and a user-supplied config path only.

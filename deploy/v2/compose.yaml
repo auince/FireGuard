@@ -1,0 +1,89 @@
+name: xfagent-v2
+services:
+  model:
+    image: vllm/vllm-openai@sha256:a230095847e93bd4df9888b33dab956fa9504537b828a23657d2b26fed57b5c9
+    profiles: [inference]
+    ports: ['127.0.0.1:8000:8000']
+    ipc: host
+    environment: {HF_HUB_OFFLINE: '1', TRANSFORMERS_OFFLINE: '1'}
+    volumes: ['/opt/models/Qwen3.5_9B:/models/qwen:ro']
+    command: [/models/qwen, --served-model-name, xf-qwen3.5-9b, --dtype, bfloat16, --gpu-memory-utilization, '0.8', --max-model-len, '16384', --max-num-seqs, '4', --enforce-eager]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              device_ids: ['3']
+              capabilities: [gpu]
+    restart: unless-stopped
+  mongo:
+    image: mongo:7.0
+    network_mode: host
+    command: [mongod, --replSet, xfv2, --port, '27017', --bind_ip, '127.0.0.1']
+    volumes: [mongo-data:/data/db]
+    restart: unless-stopped
+    healthcheck:
+      test: [CMD, mongosh, --port, '27017', --quiet, --eval, 'db.adminCommand({ping:1})']
+      interval: 5s
+      retries: 20
+  redis:
+    image: redis:7-alpine
+    network_mode: host
+    command: [redis-server, --bind, '127.0.0.1', --port, '6379', --appendonly, 'yes']
+    volumes: [redis-data:/data]
+    restart: unless-stopped
+  milvus:
+    image: milvusdb/milvus:v2.6.8
+    ports: ['127.0.0.1:19530:19530']
+    command: [milvus, run, standalone]
+    environment:
+      DEPLOY_MODE: STANDALONE
+      ETCD_USE_EMBED: 'true'
+      ETCD_DATA_DIR: /var/lib/milvus/etcd
+      ETCD_CONFIG_PATH: /milvus/configs/embedEtcd.yaml
+      ETCD_ENDPOINTS: '127.0.0.1:2379'
+      COMMON_STORAGETYPE: local
+    volumes:
+      - milvus-data:/var/lib/milvus
+      - ./milvus.yaml:/milvus/configs/user.yaml:ro
+      - ./etcd.yaml:/milvus/configs/embedEtcd.yaml:ro
+    restart: unless-stopped
+  api:
+    image: xfagent-v2:local
+    build: {context: ../.., dockerfile: deploy/v2/Dockerfile}
+    network_mode: host
+    env_file:
+      - path: ../../runtime/v2/service.env
+        required: false
+    environment: {PYTHONPATH: /opt/xfagent/src, XFAGENT_ROOT: /opt/xfagent}
+    volumes:
+      - /opt/xfagent:/opt/xfagent
+      - /opt/datasets/fire-inspection:/opt/datasets/fire-inspection:ro
+    command: [python, -m, uvicorn, xfagent.v2.api:app, --host, '127.0.0.1', --port, '8080']
+    restart: unless-stopped
+    depends_on: {mongo: {condition: service_healthy}}
+  worker:
+    deploy: {replicas: 4}
+    image: xfagent-v2:local
+    network_mode: host
+    env_file:
+      - path: ../../runtime/v2/service.env
+        required: false
+    environment: {PYTHONPATH: /opt/xfagent/src, XFAGENT_ROOT: /opt/xfagent}
+    volumes:
+      - /opt/xfagent:/opt/xfagent
+      - /opt/datasets/fire-inspection:/opt/datasets/fire-inspection:ro
+    command: [python, -m, xfagent.v2.worker]
+    restart: unless-stopped
+    depends_on: {mongo: {condition: service_healthy}}
+  prometheus:
+    image: prom/prometheus:v3.2.1
+    network_mode: host
+    command: [--config.file=/etc/prometheus/prometheus.yml, --web.listen-address=127.0.0.1:9090]
+    volumes: [./prometheus.yaml:/etc/prometheus/prometheus.yml:ro, ./alerts.yaml:/etc/prometheus/alerts.yml:ro, prometheus-data:/prometheus]
+    restart: unless-stopped
+volumes:
+  mongo-data:
+  redis-data:
+  milvus-data:
+  prometheus-data:
