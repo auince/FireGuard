@@ -87,3 +87,6 @@ htmlcov/
 credentials*.json
 accounts*.json
 service*.json
+
+# Root README is the explicitly published project guide.
+!/README.md
