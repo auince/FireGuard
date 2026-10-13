@@ -1,6 +1,6 @@
-# XFAgent
+# FireGuard
 
-[![CI](https://github.com/auince/XFAgent/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/auince/XFAgent/actions/workflows/ci.yml)
+[![CI](https://github.com/auince/FireGuard/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/auince/FireGuard/actions/workflows/ci.yml)
 
 面向消防巡检的多模态辅助 Agent，围绕 **Agent Harness、可信 RAG、持久化人工审核、分层记忆和反馈驱动的策略迭代**构建。
 
@@ -63,22 +63,22 @@ RAG 的事实与索引分开管理：
 
 | Tag | 版本内容 |
 | --- | --- |
-| [`baseline-main`](https://github.com/auince/XFAgent/tree/baseline-main) | 原 main 代码基线 |
-| [`v1.0.0`](https://github.com/auince/XFAgent/tree/v1.0.0) | 文档切块、向量检索、问题与图片输入，自建基础 Harness 原型 |
-| [`v2.0.0`](https://github.com/auince/XFAgent/tree/v2.0.0) | 接入 MongoDB 原文事实库及混合检索链路 |
-| [`v3.0.0`](https://github.com/auince/XFAgent/tree/v3.0.0) | 使用 LangGraph 固定 Intent → Rewrite → Retrieval → Answer → Verify |
-| [`v4.0.0`](https://github.com/auince/XFAgent/tree/v4.0.0) | 人工审核及基于 XFDemo 适配的多页面工作台 |
-| [`v5.0.0`](https://github.com/auince/XFAgent/tree/v5.0.0) | 多轮会话与分层记忆接入 |
-| [`v6.0.0`](https://github.com/auince/XFAgent/tree/v6.0.0) | 检测证据适配、检测框展示及历史案例参考 |
-| [`v7.0.0`](https://github.com/auince/XFAgent/tree/v7.0.0) | 结构化人工修订、现场条件确认与持久检查点恢复 |
-| [`v8.0.0`](https://github.com/auince/XFAgent/tree/v8.0.0) | 分层 LangGraph Harness、执行治理与服务生命周期完善 |
-| [`v9.0.0`](https://github.com/auince/XFAgent/tree/v9.0.0) | 反馈策略闭环接入工作台，补强事务一致性、归因修订与发布门禁 |
+| [`baseline-main`](https://github.com/auince/FireGuard/tree/baseline-main) | 原 main 代码基线 |
+| [`v1.0.0`](https://github.com/auince/FireGuard/tree/v1.0.0) | 文档切块、向量检索、问题与图片输入，自建基础 Harness 原型 |
+| [`v2.0.0`](https://github.com/auince/FireGuard/tree/v2.0.0) | 接入 MongoDB 原文事实库及混合检索链路 |
+| [`v3.0.0`](https://github.com/auince/FireGuard/tree/v3.0.0) | 使用 LangGraph 固定 Intent → Rewrite → Retrieval → Answer → Verify |
+| [`v4.0.0`](https://github.com/auince/FireGuard/tree/v4.0.0) | 人工审核及基于 XFDemo 适配的多页面工作台 |
+| [`v5.0.0`](https://github.com/auince/FireGuard/tree/v5.0.0) | 多轮会话与分层记忆接入 |
+| [`v6.0.0`](https://github.com/auince/FireGuard/tree/v6.0.0) | 检测证据适配、检测框展示及历史案例参考 |
+| [`v7.0.0`](https://github.com/auince/FireGuard/tree/v7.0.0) | 结构化人工修订、现场条件确认与持久检查点恢复 |
+| [`v8.0.0`](https://github.com/auince/FireGuard/tree/v8.0.0) | 分层 LangGraph Harness、执行治理与服务生命周期完善 |
+| [`v9.0.0`](https://github.com/auince/FireGuard/tree/v9.0.0) | 反馈策略闭环接入工作台，补强事务一致性、归因修订与发布门禁 |
 
 `main` 还包含发布整理和 README 更新；这些不回写到已有版本标签。历史标签用于查看各阶段实现，以下启动说明针对当前 `main`。
 
 ```bash
-git clone https://github.com/auince/XFAgent.git
-cd XFAgent
+git clone https://github.com/auince/FireGuard.git
+cd FireGuard
 git tag --list
 # 查看某个版本（分离 HEAD）
 git switch --detach v5.0.0
