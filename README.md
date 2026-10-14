@@ -1,3 +1,4 @@
+
 <div align="center">
 
 # 🔥 FireGuard: 智能消防巡检与合规审查多模态智能体
@@ -84,3 +85,97 @@ graph TD
     K -.->|Few-shot 动态注入| B
     K -.->|构建三类可验证奖励 RLVR<br/>Format / Tag / Conclusion| L[🚀 GRPO 强化学习策略迭代]
     L -.->|权重更新| B
+
+```
+
+---
+
+## 📊 性能评测与实验结果
+
+我们在真实的消防巡检测试集（327 张涵盖灭火器失压、疏散通道堵塞、防火门损坏、电气线路私拉乱接等细粒度隐患的实采图像）及 70 余份消防法规库上进行了全面评测：
+
+### 1. 消防隐患合规判定与细粒度识别表现
+
+| 模型与训练阶段 | 合规判定准确率 (Accuracy) | 结构化格式遵循率 | 核心提升点分析 |
+| --- | --- | --- | --- |
+| **Qwen3.5-9B (Zero-shot 基座)** | 53.12% | 68.40% | 缺乏消防视觉先验，易漏检细小缺陷（如压力表指针偏红区） |
+| **+ LoRA SFT (监督微调)** | 81.25% *(+28.13%)* | 94.10% | 掌握核心隐患特征与报告模板，但偶发标签与最终结论自相矛盾 |
+| **+ RLVR (GRPO 强化学习后训练)** | **90.63%** *(+37.51%)* | **99.38%** | **通过格式、标签、结论三类可验证奖励，大幅消除逻辑不一致与细粒度误判** |
+
+### 2. 消防法规检索 (RAG) 命中率对比
+
+| 检索策略 | Top-1 命中率 | Top-5 准确率 | 备注 |
+| --- | --- | --- | --- |
+| **Baseline (基础固定滑窗 + 稠密向量检索)** | 61.51% | 78.17% | 条款上下文割裂，对国标编号与专业术语敏感度低 |
+| **FireGuard RAG (双向量父子索引 + BM25/Dense RRF + Agent 迭代检索)** | **74.21%** *(+12.70%)* | **92.06%** *(+13.89%)* | **完整保留法条层级结构，显著抑制法规引用幻觉** |
+
+---
+
+## 📂 目录结构 (Repository Structure)
+
+```text
+FireGuard/
+├── configs/                    # 模型配置、LangGraph 路由阈值与 RAG 超参数
+├── data_pipeline/              # 人机协同数据管线
+│   ├── defect_simulation/      # 局部缺陷仿真与罕见异常样本扩充脚本
+│   ├── pre_annotation/         # 模型预标注与人工复审数据清洗标准
+│   └── regulation_parser/      # 70+ 消防法规层级解析与父子分块构建器
+├── rag/                        # Evidence-Grounded RAG 核心模块
+│   ├── dual_index.py           # 标题-正文双向量索引与图文双向索引
+│   ├── hybrid_retriever.py     # BM25 + Dense 检索与 RRF 重排序
+│   └── query_rewriter.py       # Agent 查询改写与多跳检索逻辑
+├── workflow/                   # Governed LangGraph 核心状态机
+│   ├── state.py                # 强类型全局状态定义 (GraphState)
+│   ├── nodes.py                # 视觉感知、法规检索、证据核验、报告生成节点
+│   ├── hitl_interrupt.py       # 人工审核中断 (Human Review) 与状态恢复
+│   └── memory_store.py         # 短期 Checkpointer 与长期经验记忆库管理
+├── post_training/              # VLM 后训练与策略迭代闭环
+│   ├── sft_lora/               # 基于 ms-swift / TRL 的 Qwen3.5-9B LoRA 微调脚本
+│   ├── grpo_rlvr/              # GRPO 训练与三类可验证奖励函数 (Format/Tag/Verdict)
+│   └── feedback_collector.py   # 将 HITL 人工审核记录转化为离线 RL 训练样本
+├── app/                        # FastAPI 后端服务与消防巡检交互前端
+└── README.md
+
+```
+
+---
+
+## 🚀 快速开始 (Quick Start)
+
+### 1. 环境安装
+
+```bash
+git clone [https://github.com/auince/FireGuard.git](https://github.com/auince/FireGuard.git)
+cd FireGuard
+conda create -n fireguard python=3.10 -y
+conda activate fireguard
+pip install -r requirements.txt
+
+```
+
+### 2. 启动本地 VLM 推理服务 (基于 vLLM)
+
+```bash
+vllm serve ./checkpoints/qwen3.5-9b-fireguard-grpo \
+    --served-model-name fireguard-vlm \
+    --trust-remote-code \
+    --port 8000
+
+```
+
+### 3. 构建消防法规双向量索引库
+
+```bash
+python -m data_pipeline.regulation_parser.build_index \
+    --docs_dir ./data/fire_regulations \
+    --index_path ./storage/dual_vector_index
+
+```
+
+### 4. 运行受控巡检工作流 (支持 HITL 交互)
+
+```bash
+python -m app.main --image_path ./examples/blocked_exit.jpg --enable_hitl
+
+```
+
