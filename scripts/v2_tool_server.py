@@ -10,7 +10,7 @@ from backend.infrastructure.vision import yolo_detector
 # Keep the virtualenv launcher path: resolving its symlink loses the environment.
 yolo_detector.YOLO_PYTHON=ROOT/'.venv-model/bin/python'
 run_yolo_detection=yolo_detector.run_yolo_detection
-from xfagent.cases import search_cases
+from xfagent.cases import retrieve_cases
 
 class Handler(BaseHTTPRequestHandler):
     def send(self,code,obj):
@@ -26,7 +26,9 @@ class Handler(BaseHTTPRequestHandler):
                 task={'indoor_hydrant':'internal_components','outdoor_hydrant':'outdoor_hydrant','fire_extinguisher':'fire_extinguisher'}[facility]
                 self.send(200,run_yolo_detection(obj['image'],task=task))
             elif self.path=='/cases':
-                self.send(200,search_cases(obj['query'],obj.get('kind','text'),'rrf'))
+                self.send(200,retrieve_cases(obj.get('query',''), obj.get('image'),
+                    project_id=obj.get('project_id'), facility=obj.get('facility'),
+                    regions=obj.get('regions'), k=min(5,int(obj.get('k',3)))))
             else:self.send(404,{'error':'unknown tool'})
         except Exception as exc:self.send(400,{'error':str(exc)[:300]})
 

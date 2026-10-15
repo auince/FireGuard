@@ -22,7 +22,7 @@ class State(TypedDict,total=False):
     facility:str;memory:dict;frozen_memory:dict;similar_cases:list;observations:list;detector:dict;queries:list;evidence:list
     conclusions:list;context_gaps:list;verification:dict;report:dict;trace:list;warnings:list
     calls:int;usage:dict;active_seconds:float;retrieval_rounds:int;rewrites:int
-    exhausted:bool;review:dict;status:str;forced_policy:str;semantic:dict;retrieval_telemetry:dict;retrieval_hint:dict;model_routes:dict;model_routes_hash:str
+    exhausted:bool;review:dict;status:str;forced_policy:str;semantic:dict;retrieval_telemetry:dict;case_telemetry:dict;retrieval_hint:dict;model_routes:dict;model_routes_hash:str
 
 def verification_route(s):
     verification=s.get('verification',{})
@@ -89,7 +89,7 @@ def facility_graph(store,facility):
     def detect(s):
         from xfagent.evidence_vision import VisionEvidence
         req={**s['request'],'image':image_data(s['request'])}
-        value=VisionEvidence().analyze(req,facility,time.monotonic()+max(.1,300-s.get('active_seconds',0)))
+        value=VisionEvidence().analyze(req,facility,time.monotonic()+max(.1,300-s.get('active_seconds',0)),include_cases=False)
         value['warnings']=s.get('warnings',[])+value['warnings']
         return value
     def observe(s):
@@ -163,11 +163,17 @@ def inspection_graph(store,checkpointer=True,governed=False):
     def retrieve(s):
         if s.get('retrieval_rounds',0)>=2:return {'warnings':s.get('warnings',[])+['max_retrieval_rounds_reached']}
         r=s['request'];spec=s.get('policy',{}).get('spec',{}) if s.get('policy',{}).get('triggered') else {}
+        from xfagent.evidence_vision import VisionEvidence
+        deadline=time.monotonic()+max(.1,300-s.get('active_seconds',0))
+        references=VisionEvidence().references({**r,'image':image_data(r)},s.get('facility'),deadline,
+            s.get('detector',{}).get('detections',[]))
+        links=[eid for case in references['similar_cases'] for eid in case.get('linked_evidence_ids',[])]
         result=retriever.search(s.get('queries') or [r['query']],s['snapshot_id'],r['as_of'],r['jurisdiction'],
             mode=r.get('retrieval_mode','rrf'),k=spec.get('evidence_k',5),parent_expand=spec.get('parent_expand',False),
-            deadline=time.monotonic()+max(.1,300-s.get('active_seconds',0)),dense_hint=s.get('retrieval_hint',{}).get('text'))
-        return {'evidence':result['evidence'],'queries':result['queries'],'retrieval_rounds':s.get('retrieval_rounds',0)+1,
-                'warnings':s.get('warnings',[])+result['warnings'],'retrieval_telemetry':result.get('telemetry',{})}
+            deadline=deadline,dense_hint=s.get('retrieval_hint',{}).get('text'),linked_evidence_ids=links)
+        return {'similar_cases':references['similar_cases'],'case_telemetry':references['case_telemetry'],
+                'evidence':result['evidence'],'queries':result['queries'],'retrieval_rounds':s.get('retrieval_rounds',0)+1,
+                'warnings':s.get('warnings',[])+references['warnings']+result['warnings'],'retrieval_telemetry':result.get('telemetry',{})}
     def fallback(s):
         rows=[Conclusion(claim_id='c'+str(i+1),text=o['description'],observation_ids=[o['observation_id']],
                 kind='observation').model_dump() for i,o in enumerate(s.get('observations',[]))]
@@ -177,7 +183,7 @@ def inspection_graph(store,checkpointer=True,governed=False):
         r=s['request']
         if s.get('exhausted') or not s.get('evidence') or not r.get('use_model',True):return {'conclusions':fallback(s)}
         aliases={'e'+str(i+1):e['evidence_id'] for i,e in enumerate(s['evidence'])}
-        evidence=[{**{k:e[k] for k in ['text','document_title','conditions','parent_text'] if k in e},'evidence_id':'e'+str(i+1)} for i,e in enumerate(s['evidence'])]
+        evidence=[{**{k:e[k] for k in ['text','document_title','heading_path','conditions','parent_text'] if k in e},'evidence_id':'e'+str(i+1)} for i,e in enumerate(s['evidence'])]
         spec=s.get('policy',{}).get('spec',{})
         obj=complete(s,'recommendation填写整改建议，不得在建议中编造实测值或法规结论。历史案例只作思路参考，不能引用为本次事实或法律依据。生成核查草稿，最多4条结论，每条text不超过100字；不要重复引文全文。返回 {"conclusions":[...]}。引用使用本次给定的e1/e2等短编号，不生成长哈希。每条必须显式填写kind：单纯描述图像用observation，提示补测或无法判断用information_request；只有关联法规判定才用legal_assessment且evidence_ids不得为空。检索条款不相关时保留现场观察和待核查问题，不能硬套。每条符合 schema。引用仅用给定 evidence_id；现场判断必须关联 observation_id；未知条件保留 missing_fields。信息不全时 applicability=unknown、sufficiency=insufficient。',
             {'schema':Conclusion.model_json_schema(),'query':r['query'],'scene':r['scene'],'observations':s.get('observations',[]),

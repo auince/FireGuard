@@ -51,42 +51,67 @@ def convert(path):
         return p.read_text(encoding='utf-8-sig')
     raise ValueError(f'不支持的格式: {suffix}')
 
+STRUCTURE_REVISION = 'heading-path-v2'
+
+
 def structure(text, title, doc_id, max_child=450):
-    """Chapter parents and article children, bounded windows for non-statutory prose."""
-    parents, children = [], []
-    chapter = title
-    lines = []
+    """Preserve heading ancestry separately from unmodified article text."""
+    if max_child < 1:
+        raise ValueError('max_child must be positive')
+    parents, children, stack, lines = [], [], [], []
+    ordinal = 0
+    number = r'[一二三四五六七八九十百零〇\d]+'
+
     def flush():
         nonlocal lines
-        if not lines:
-            return
         body = '\n'.join(lines).strip()
+        if not body:
+            return
+        path = [title] + [h['title'] for h in stack if h['title'] != title]
+        ancestors = [h['id'] for h in stack]
         pid = f'{doc_id}:p{len(parents)}'
-        parents.append({'id': pid, 'doc_id': doc_id, 'title': chapter, 'text': body})
-        parts = re.split(r'(?m)(?=^\s*(?:第[一二三四五六七八九十百零〇\d]+条|\d+\.\d+\.\d+\s))', body)
+        parents.append({'id': pid, 'doc_id': doc_id, 'title': path[-1],
+                        'heading_path': path, 'ancestor_ids': ancestors, 'text': body})
+        parts = re.split(r'(?m)(?=^\s*(?:第' + number + r'条|\d+\.\d+\.\d+\s))', body)
         for part in parts:
             part = part.strip()
             if not part:
                 continue
-            article = re.match(r'(第[一二三四五六七八九十百零〇\d]+条|\d+\.\d+\.\d+)', part)
+            article = re.match(r'(第' + number + r'条|\d+\.\d+\.\d+)', part)
             label = article.group(1) if article else ''
             for offset in range(0, len(part), max_child):
                 children.append({'id': f'{doc_id}:c{len(children)}', 'doc_id': doc_id,
-                                 'parent_id': pid, 'title': f'{title} / {chapter} / {label}',
-                                 'article': label, 'text': part[offset:offset+max_child]})
+                    'parent_id': pid, 'ancestor_ids': ancestors[:], 'heading_path': path[:],
+                    'title': ' / '.join(path + ([label] if label else [])),
+                    'article': label, 'text': part[offset:offset+max_child]})
         lines = []
-    for line in text.splitlines():
-        line = line.strip()
+
+    for raw in text.splitlines():
+        line = raw.strip()
         if not line:
             continue
-        if re.match(r'^(?:#{1,4}\s|第[一二三四五六七八九十百\d]+章)', line):
+        markdown = re.match(r'^(#{1,6})\s+(.+?)\s*#*$', line)
+        chinese = re.match(r'^第' + number + r'([编章节])', line)
+        # Standard documents commonly use 3 / 3.1 for headings and 3.1.1 for clauses.
+        numbered = re.match(r'^(\d+(?:\.\d+)?)\s+\S', line)
+        if markdown or chinese or numbered:
             flush()
-            chapter = line.lstrip('# ').strip()
+            if markdown:
+                level, heading = len(markdown.group(1)), markdown.group(2)
+            elif chinese:
+                level, heading = {'编': 1, '章': 2, '节': 3}[chinese.group(1)], line
+            else:
+                level, heading = 2 + numbered.group(1).count('.'), line
+            while stack and stack[-1]['level'] >= level:
+                stack.pop()
+            stack.append({'id': f'{doc_id}:h{ordinal}', 'title': heading, 'level': level})
+            ordinal += 1
         lines.append(line)
         if len('\n'.join(lines)) > 10000:
             flush()
     flush()
     return parents, children
+
 
 def normalize_with_model(text):
     """Optional suggested outline: never allow a model to rewrite authoritative clauses."""

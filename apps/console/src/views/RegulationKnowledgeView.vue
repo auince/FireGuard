@@ -154,6 +154,7 @@ onMounted(catalog)
           <h2 class="subheading">条款检索结果 · {{ hits.length }} 条</h2>
           <article v-for="(hit, i) in hits" :key="hit.evidence_id" class="evidence-card">
             <h3>{{ i + 1 }}. {{ hit.document_title }}</h3>
+            <p v-if="hit.heading_path?.length" class="muted">{{ hit.heading_path.join(' › ') }}</p>
             <blockquote>{{ hit.text }}</blockquote>
             <a
               v-if="safeSource(hit.source_url)"

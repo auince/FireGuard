@@ -35,6 +35,7 @@ class State(TypedDict, total=False):
     memory_context: dict
     detector: dict
     similar_cases: list
+    case_telemetry: dict
     model_calls: int
 
 

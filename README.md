@@ -176,3 +176,58 @@ python -m app.main --image_path ./examples/blocked_exit.jpg --enable_hitl
 
 ```
 
+---
+
+## 第十版：双向量与图文案例检索（v10.0.0）
+
+对应版本：[v10.0.0](https://github.com/auince/FireGuard/tree/v10.0.0)。本节说明当前可执行代码与索引迁移；本次验证不将上文历史评测数字视为第十版实测结果。
+
+法规条款保存完整 `heading_path`、祖先节点、条号和原文。Milvus 的 `title_vector`、`body_vector` 独立检索，再与 BM25 做 RRF 融合；标题未命中不会截断正文召回。旧快照仍按原单向量字段读取，新快照使用独立物理集合，建库失败不切换活动指针。原文与版本校验仍由 MongoDB 执行。
+
+配置本地模型服务与数据库后，执行：
+
+```bash
+# 先构建并验证新快照；此步骤不切换活动法规库。
+PYTHONPATH=src python scripts/v10_reindex.py
+# 切换经过验证的快照；可同时构建本地私有案例索引。
+PYTHONPATH=src python scripts/v10_reindex.py --publish --case-source /path/to/private-cases.jsonl
+```
+
+案例源每行包含 `id`、`image`（本地图片路径）、`description`（客观描述），并明确填写 `project_id` 或 `visibility: "shared"`、`review_status: "approved"`。可附 `facility`、`synthetic`、`group_id`、`regions`（归一化检测框）、`linked_evidence_ids`、`review_conclusion`、`confirmed_conditions`、`remediation`。仿真样本使用 `synthetic: true`；未审核记录默认不进入检索，`test/eval/validation/dev` 分组也不会进入参考结果。
+
+案例图片与描述使用同一多模态模型的对齐向量，当前适配器复用 CLIP 服务；通过 `XF_MULTIMODAL_URL` 和 `XF_MULTIMODAL_MODEL_ID` 指定兼容服务及模型标识，更换模型后必须重建案例索引。法规文本向量和案例图文向量保持独立空间，不直接比较相似度。案例索引使用版本化本地 NumPy 文件与原子指针，不写入法规 Milvus 集合。每代索引附带已校验的图片副本，避免依赖原机器图片路径。容器通过只读挂载访问索引；在本地 `.env` 设置 `XF_CASES_DIR` 为建库生成的 `data/cases` 目录，宿主视觉工具与 API 使用同一份索引。
+
+登录后在“案例检索”页面输入文字、上传照片或同时输入两者。文字分别搜索案例图片与描述；照片及最多两个检测区域分别搜索案例图片与描述。结果按案例融合、按来源组去重，标记仿真属性与审核状态。案例关联条款仅作为候选 ID，重新回 MongoDB 校验版本、时效与哈希后才可能成为法规证据。
+
+以下为仿真查询示例，需先登录并准备已审核案例：
+
+```javascript
+const response = await fetch('/api/cases/search', {
+  method: 'POST',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    project_id: 'default',
+    query: '消火栓箱前方堆放杂物',
+    facility: 'indoor_hydrant',
+    // 图片查询时传入上传文件的 data:image/jpeg;base64,... 或 PNG 数据。
+    image: null,
+  }),
+});
+const { cases, warnings, routes } = await response.json();
+```
+
+检索通道超时会保留其余通道结果并记录降级。相似案例不代表本次现场存在同类隐患，也不能替代测量或人工确认。代码测试使用合成向量验证链路与约束；中文描述、细小部件和真实检索效果仍需结合实际模型评测。
+
+实现入口：法规切块 `src/xfagent/ingest.py`，法规检索 `src/xfagent/v2/retrieval.py`，案例检索 `src/xfagent/cases.py`，固定工作流 `src/xfagent/v2/graphs.py`，业务 API `src/xfagent/server/app.py`，前端页面 `apps/console/src/views/CaseSearchView.vue`。
+
+当前代码需要 Python 3.12+，后端依赖安装与回归入口如下（MongoDB 副本集与 Redis 需先就绪）：
+
+```bash
+pip install -r requirements-v2.lock
+PYTHONPATH=src pytest tests/server tests/practice tests/v2 -q
+npm ci --prefix apps/console
+npm run format:check --prefix apps/console
+npm run build --prefix apps/console
+```
+
+安装可选的 `milvus-lite` 后，会额外执行真实双字段索引往返测试。工程测试采用合成向量与临时数据验证链路，不代表真实模型召回准确率。法规、案例图片、索引文件、本地配置及私有文档均不提交，README 是公开使用说明。

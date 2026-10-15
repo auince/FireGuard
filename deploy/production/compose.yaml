@@ -9,7 +9,7 @@ services:
     env_file: .env
     command: ["python", "scripts/service.py", "serve", "--host", "0.0.0.0", "--port", "8000"]
     ports: ["127.0.0.1:8080:8000"]
-    volumes: ["uploads:/app/runtime"]
+    volumes: ["uploads:/app/runtime", "${XF_CASES_DIR:-../../data/cases}:/app/data/cases:ro"]
     restart: unless-stopped
     security_opt: ["no-new-privileges:true"]
     cap_drop: ["ALL"]
@@ -27,7 +27,7 @@ services:
       dockerfile: deploy/production/Dockerfile
     env_file: .env
     command: ["python", "scripts/service.py", "worker"]
-    volumes: ["uploads:/app/runtime"]
+    volumes: ["uploads:/app/runtime", "${XF_CASES_DIR:-../../data/cases}:/app/data/cases:ro"]
     restart: unless-stopped
     stop_grace_period: 330s
     security_opt: ["no-new-privileges:true"]

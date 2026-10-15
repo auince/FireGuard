@@ -46,7 +46,7 @@ def create_app(store=None):
         storage.db.auth_sessions.create_index('expires_at', expireAfterSeconds=0)
         yield
 
-    app = FastAPI(title='消防巡检管理平台', version='9.0.0', lifespan=lifespan)
+    app = FastAPI(title='消防巡检管理平台', version='10.0.0', lifespan=lifespan)
     app.state.store = storage
     hosts = os.getenv('XF_ALLOWED_HOSTS', '127.0.0.1,localhost').split(',')
     app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
@@ -129,7 +129,7 @@ def create_app(store=None):
 
     @app.get('/api/health')
     def health():
-        return {'stage': 9, 'model': MODEL, 'inference': os.getenv('XF_INFERENCE_MODE','external_service'), 'execution': 'durable_worker'}
+        return {'stage': 10, 'model': MODEL, 'inference': os.getenv('XF_INFERENCE_MODE','external_service'), 'execution': 'durable_worker'}
 
     @app.get('/health/live')
     def live():
@@ -203,6 +203,7 @@ def create_app(store=None):
                          model=report.get('model_version', MODEL), model_calls=state.get('calls', 0),
                          warnings=report.get('warnings', []), error=row.get('error'),
                          snapshot_id=state.get('snapshot_id'),queries=state.get('queries',[]),telemetry=state.get('retrieval_telemetry',{}),
+                         case_telemetry=state.get('case_telemetry',{}),
                          answer={'hazards': [{'description': c['text'], 'suggestion': c.get('recommendation', ''),
                                               'evidence_ids': c.get('evidence_ids', [])} for c in conclusions],
                                  'missing_information': report.get('verification', {}).get('missing_fields', [])})
@@ -269,6 +270,43 @@ def create_app(store=None):
         if body.project_id not in who.projects:
             raise HTTPException(403, '项目访问被拒绝')
         return core.clean(rag.search(body.model_dump(mode='json'), [body.query]))
+
+    @app.post('/api/cases/search')
+    def case_search(body: dict, who: Actor = Depends(current)):
+        from xfagent.cases import retrieve_cases
+        from urllib.parse import quote
+        project = body.get('project_id')
+        if project not in who.projects:
+            raise HTTPException(403, '项目访问被拒绝')
+        facility = body.get('facility')
+        if facility is not None and (not isinstance(facility, str) or facility not in {'auto', 'unknown', 'indoor_hydrant', 'outdoor_hydrant', 'fire_extinguisher'}):
+            raise ValueError('设施类别无效')
+        query = body.get('query', '')
+        if not isinstance(query, str) or len(query) > 1000:
+            raise ValueError('检索文字需少于 1000 字')
+        try:
+            result = retrieve_cases(query, body.get('image'), project_id=project,
+                facility=facility, k=5, deadline=time.monotonic()+20)
+        except (OSError, ValueError) as exc:
+            if isinstance(exc, ValueError) and ('required' in str(exc) or 'image' in str(exc)):
+                raise
+            raise HTTPException(503, '案例索引不可用，请检查索引及模型配置') from exc
+        for case in result['cases']:
+            case['image_url'] = '/api/cases/' + quote(case['id'], safe='') + '/image?project_id=' + quote(project, safe='')
+        return result
+
+    @app.get('/api/cases/{identifier}/image')
+    def reference_image(identifier: str, project_id: str, who: Actor = Depends(current)):
+        from xfagent.cases import case_image
+        if project_id not in who.projects:
+            raise HTTPException(403, '项目访问被拒绝')
+        try:
+            path = case_image(identifier, project_id)
+        except (OSError, ValueError) as exc:
+            raise HTTPException(503, '案例图片暂不可用') from exc
+        if path is None:
+            raise HTTPException(404, '案例不存在或无权访问')
+        return FileResponse(path)
 
     @app.get('/api/memory')
     def memory(who: Actor = Depends(current)):

@@ -18,6 +18,7 @@ const routes = [
     name: 'Regulations',
     component: () => import('@/views/RegulationKnowledgeView.vue'),
   },
+  { path: '/cases', name: 'Cases', component: () => import('@/views/CaseSearchView.vue') },
   { path: '/sessions', name: 'Sessions', component: () => import('@/views/SessionsView.vue') },
   { path: '/memory', name: 'Memory', component: () => import('@/views/MemoryView.vue') },
   { path: '/feedback', name: 'Feedback', component: () => import('@/views/FeedbackView.vue') },

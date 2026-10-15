@@ -19,7 +19,7 @@ def source_integrity(doc):
     return p.exists() and digest(p.read_bytes())==doc['sha256']
 
 def prepare_snapshot(store):
-    from xfagent.ingest import structure
+    from xfagent.ingest import structure, STRUCTURE_REVISION
     manifest=json.loads((ROOT/'data/legal/manifest.json').read_text())
     originals=[];evidence=[]
     for d in manifest:
@@ -39,19 +39,19 @@ def prepare_snapshot(store):
             quote=c['text'];offset=text.find(quote)
             # Some legacy chunks normalize whitespace; retain an explicit unmapped marker.
             article=c.get('article') or c.get('article_number') or ''
-            eid=digest([doc['version_id'],article,quote])
+            eid=digest([doc['version_id'],c['heading_path'],article,quote])
             evidence.append({**c,'evidence_id':eid,'legacy_id':c['id'],'doc_id':d['id'],
                 'version_id':doc['version_id'],'source_hash':d['sha256'],'quote_hash':digest(quote.encode()),
                 'conditions':d.get('clause_conditions',{}).get(article,{}),
                 'parent_text':pm[c['parent_id']]['text'],'location':{'article':article,'char_start':offset,
                 'char_end':offset+len(quote) if offset>=0 else None},'document_title':d['title']})
     validate_versions(originals)
-    sid='kb-'+digest([(d['doc_id'],d['sha256'],d.get('effective_from'),d.get('effective_until'),d['body_hash'],d['conditions'],d.get('clause_conditions',{}),d['lifecycle'],
-        d['version_id'],d['logical_document_id'],d['previous_version_id']) for d in originals])[:20]
+    sid='kb-'+digest([STRUCTURE_REVISION, [(d['doc_id'],d['sha256'],d.get('effective_from'),d.get('effective_until'),d['body_hash'],d['conditions'],d.get('clause_conditions',{}),d['lifecycle'],
+        d['version_id'],d['logical_document_id'],d['previous_version_id']) for d in originals]])[:20]
     existing=store.db.snapshots.find_one({'_id':sid,'state':'published'})
     if existing:return sid
     store.db.snapshots.update_one({'_id':sid},{'$setOnInsert':{'state':'pending','created_at':now(),
-        'document_count':len(originals),'evidence_count':len(evidence),'embedding_model':'bge-m3'}},upsert=True)
+        'structure_revision':STRUCTURE_REVISION,'document_count':len(originals),'evidence_count':len(evidence),'embedding_model':'bge-m3'}},upsert=True)
     for doc in originals:
         doc.update(snapshot_id=sid);doc['_id']=sid+':'+doc['doc_id'];doc.pop('id',None)
         store.db.documents.replace_one({'_id':doc['_id']},doc,upsert=True)

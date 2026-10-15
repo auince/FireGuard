@@ -19,7 +19,7 @@ class VisionEvidence:
         result.raise_for_status()
         return result.json()
 
-    def analyze(self, request, facility, deadline=None):
+    def analyze(self, request, facility, deadline=None, include_cases=True):
         deadline = deadline or time.monotonic() + 50
         result = {'detector': {'enabled': False, 'detections': [], 'status': 'not_requested'},
                   'similar_cases': [], 'warnings': []}
@@ -48,19 +48,37 @@ class VisionEvidence:
                 result['warnings'].append('detector_unavailable')
         elif image:
             result['detector']['status'] = 'unsupported_facility'
+        if include_cases:
+            references = self.references(request, facility, deadline, result['detector']['detections'])
+            result['similar_cases'] = references['similar_cases']
+            result['warnings'].extend(references['warnings'])
+            result['case_telemetry'] = references['case_telemetry']
+        return result
+
+    def references(self, request, facility, deadline=None, detections=None):
+        from .cases import permitted, reviewed
+        result = {'similar_cases': [], 'warnings': [], 'case_telemetry': {}}
+        deadline = deadline or time.monotonic() + 20
         try:
-            rows = self.call('/cases', {'query': request['query'], 'kind': 'text','project_id':request.get('project_id')}, deadline, 10)
+            response = self.call('/cases', {'query': request.get('query', ''), 'image': request.get('image'),
+                'project_id': request.get('project_id'), 'facility': facility,
+                'regions': [d['bboxNorm'] for d in (detections or [])[:2]], 'k': 3}, deadline, 20)
+            rows = response.get('cases', []) if isinstance(response, dict) else response
+            if isinstance(response, dict):
+                result['warnings'].extend(response.get('warnings', []))
+                result['case_telemetry'] = {'routes': response.get('routes', [])}
             for case in rows[:10]:
-                project=case.get('project_id')
-                shared=case.get('visibility')=='shared' or os.getenv('XF_CASES_SHARED','false').lower()=='true'
-                if (project is not None and project!=request.get('project_id')) or (project is None and not shared):
+                if not permitted(case, request.get('project_id')) or not reviewed(case):
                     continue
                 score = float(case.get('score', 0))
                 if not math.isfinite(score):
                     continue
-                result['similar_cases'].append({'case_id': str(case['id'])[:160], 'description': str(case['description'])[:1800],
+                reference = {'case_id': str(case['id'])[:160], 'description': str(case['description'])[:1800],
                     'score': score, 'authority': 'historical_case_not_current_fact', 'usable_as_legal_evidence': False,
-                    'review_status': 'legacy_review_unverified'})
+                    'review_status': case.get('review_status', 'legacy_review_unverified'),
+                    'synthetic': case.get('synthetic', False), 'route_scores': case.get('route_scores', {}),
+                    'linked_evidence_ids': [x for x in case.get('linked_evidence_ids', [])[:10] if isinstance(x, str)]}
+                result['similar_cases'].append(reference)
                 if len(result['similar_cases']) == 3:
                     break
         except (requests.RequestException, ValueError, KeyError, TypeError, TimeoutError):

@@ -49,7 +49,13 @@ const statuses = {
       <article v-for="item in report.similar_cases" :key="item.case_id">
         <strong>案例 {{ item.case_id }}</strong>
         <p>{{ item.description }}</p>
-        <small>历史审核标记尚未重新核验</small>
+        <small
+          >{{
+            item.review_status === 'approved'
+              ? '历史审核已通过，需结合本次现场核查'
+              : '历史审核标记尚未重新核验'
+          }}{{ item.synthetic ? ' · 仿真案例' : '' }}</small
+        >
       </article>
     </div>
     <p v-else-if="report.warnings?.includes('case_reference_unavailable')" class="muted">

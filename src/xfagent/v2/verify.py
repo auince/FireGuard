@@ -8,7 +8,7 @@ def verify(store,state,conclusions=None):
     selected={e['evidence_id']:e for e in state.get('evidence',[])}
     canonical={}
     # Validate what the model/reviewer actually saw, not just existence of its ID.
-    fields=['text','quote_hash','source_hash','version_id','doc_id','snapshot_id','source_url','conditions','location','effective_from','effective_until','jurisdiction','status','lifecycle']
+    fields=['title','heading_path','text','quote_hash','source_hash','version_id','doc_id','snapshot_id','source_url','conditions','location','effective_from','effective_until','jurisdiction','status','lifecycle']
     for eid,reported in selected.items():
         e=fetch_evidence(store,state['snapshot_id'],eid,req['as_of'],req['jurisdiction'])
         canonical[eid]=e

@@ -25,6 +25,7 @@ const primaryItems = computed(() =>
   ),
 )
 const secondaryItems = [
+  { path: '/cases', label: '案例检索' },
   { path: '/feedback', label: '反馈中心' },
   { path: '/policies', label: '策略管理' },
   { path: '/monitor', label: '运行记录' },

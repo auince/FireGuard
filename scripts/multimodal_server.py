@@ -1,4 +1,4 @@
-import argparse,base64,io,json,threading
+import argparse,base64,io,json,threading,os
 from pathlib import Path
 from http.server import BaseHTTPRequestHandler,ThreadingHTTPServer
 from PIL import Image
@@ -36,7 +36,7 @@ def main():
                         inputs=processor(images=images,return_tensors='pt');vectors=model.get_image_features(**inputs)
                     if not isinstance(vectors,torch.Tensor):vectors=vectors.pooler_output
                     vectors=torch.nn.functional.normalize(vectors,dim=-1)
-                self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(json.dumps({'vectors':vectors.tolist()}).encode())
+                self.send_response(200);self.send_header('Content-Type','application/json');self.end_headers();self.wfile.write(json.dumps({'vectors':vectors.tolist(),'encoder_id':os.getenv('XF_MULTIMODAL_MODEL_ID','clip-vit-large-patch14')}).encode())
             except Exception as e:
                 self.send_response(400);self.end_headers();self.wfile.write(str(e).encode())
     ThreadingHTTPServer(('127.0.0.1',a.port),Handler).serve_forever()

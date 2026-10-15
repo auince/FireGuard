@@ -21,7 +21,7 @@ class TrustedRAG:
 
     def validate(self, evidence, request, snapshot):
         errors = []
-        fields = ['text', 'quote_hash', 'source_hash', 'version_id', 'conditions', 'source_url']
+        fields = ['title', 'heading_path', 'text', 'quote_hash', 'source_hash', 'version_id', 'conditions', 'source_url']
         for reported in evidence:
             current = fetch_evidence(self.store, snapshot, reported['evidence_id'],
                                      request['as_of'], request['jurisdiction'])
